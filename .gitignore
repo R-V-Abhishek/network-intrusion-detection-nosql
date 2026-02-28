@@ -42,3 +42,14 @@ Thumbs.db
 
 # Docker
 docker-compose.override.yml
+
+# Large dataset CSVs (download separately, only sample.csv is tracked)
+data/UNSW-NB15/*.csv
+!data/UNSW-NB15/sample.csv
+data/UNSW-NB15/*.pcap
+
+# Trained model artifacts (generated, not committed)
+models/
+
+# Preprocessed parquet files (generated)
+data/preprocessed/
