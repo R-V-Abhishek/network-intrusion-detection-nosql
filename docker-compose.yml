@@ -1,0 +1,45 @@
+version: "3.9"
+
+services:
+  app:
+    build: .
+    container_name: nids_app
+    depends_on:
+      - redis
+      - cassandra
+    environment:
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      CASSANDRA_HOST: cassandra
+      CASSANDRA_PORT: 9042
+    volumes:
+      - ./src:/app/src
+    networks:
+      - nids_net
+
+  redis:
+    image: redis:7-alpine
+    container_name: nids_redis
+    ports:
+      - "6379:6379"
+    networks:
+      - nids_net
+
+  cassandra:
+    image: cassandra:4.1
+    container_name: nids_cassandra
+    ports:
+      - "9042:9042"
+    environment:
+      CASSANDRA_CLUSTER_NAME: nids_cluster
+    volumes:
+      - cassandra_data:/var/lib/cassandra
+    networks:
+      - nids_net
+
+networks:
+  nids_net:
+    driver: bridge
+
+volumes:
+  cassandra_data:
