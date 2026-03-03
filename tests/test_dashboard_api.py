@@ -7,11 +7,9 @@ Responses are checked for correct HTTP status and JSON structure.
 Run with: pytest tests/test_dashboard_api.py -v
 """
 
-import pytest
-import sys
-import os
 
 # ─── Shared mock so imports inside api_alerts / api_analytics don't crash ────
+
 
 class _MockStorage:
     """Minimal in-memory stand-in for AlertStorage."""

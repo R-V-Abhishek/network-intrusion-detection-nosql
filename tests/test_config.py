@@ -6,7 +6,6 @@ They just verify that the config values are correct types and sensible values.
 Run with: pytest tests/test_config.py -v
 """
 
-import pytest
 from config.config import (
     KAFKA_CONFIG,
     SPARK_CONFIG,

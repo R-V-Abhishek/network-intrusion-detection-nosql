@@ -9,7 +9,6 @@ Run with: pytest tests/test_pipeline.py -v
 """
 
 import os
-import pytest
 
 
 class TestStubModelsFlag:
