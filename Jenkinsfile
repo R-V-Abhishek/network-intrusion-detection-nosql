@@ -118,7 +118,7 @@ pipeline {
         // Feature branches just run stages 1-5 to verify they're safe to merge
         stage('Deploy') {
             when {
-                branch 'main'
+                expression { env.GIT_BRANCH == 'origin/master' }
             }
             steps {
                 sh '''
