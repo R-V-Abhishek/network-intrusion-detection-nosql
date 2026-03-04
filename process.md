@@ -10,6 +10,9 @@ Each person:
 3. Install current deps: `pip install -r requirements.txt`
 4. Download UNSW-NB15 raw CSVs into UNSW-NB15
 5. Verify they can open unsw_model_training.ipynb without errors
+6. Verify tests run: `pytest tests/ -v` — all should pass (these test config only, no services needed)
+
+> **CI/CD note:** Jenkins, `Jenkinsfile`, `tests/`, and `docker-compose.ci.yml` are already committed to `master`. See [CICD.md](CICD.md) for full setup guide.
 
 ---
 
@@ -61,6 +64,11 @@ git checkout -b feature/p3-infra-storage
 ```
 
 **After this point, all three work independently and in parallel.**
+
+### Checkpoint 1.6 — Verify CI pipeline is live (Person 3, 10 mins)
+Person 3 opens Jenkins → confirms the `master` branch pipeline ran successfully after the `Jenkinsfile` commit. Everyone should see a green build before branching off. If it's red, fix it before Day 2 starts.
+
+Jenkins build URL (once set up): `http://<jenkins-server>:8080/job/nids-pipeline/`
 
 ---
 
@@ -439,13 +447,16 @@ Each person writes their PR description with:
 
 ### Checkpoint PR-2 (Day 8–9) — PRs open
 
-All three PRs open simultaneously. Project head reviews using:
+All three PRs open simultaneously. **Jenkins automatically runs the full pipeline on each PR branch** (Checkout → Install → Lint → Test → Build). A PR cannot be merged until Jenkins shows a green build.
+
+Project head reviews using:
 
 | For Person 1 | For Person 2 | For Person 3 |
 |---|---|---|
 | `python scripts/run_preprocessing.py` runs without error | unsw_training_results.json has AUC ≥ 0.85 | `docker compose up` goes fully healthy |
 | `data/preprocessed/unsw_train.parquet` has correct schema | visualization.ipynb renders all plots | `/api/health` returns 200 with Cassandra + Redis status |
 | `binary_inference.py` standalone test prints predictions | `multiclass_inference.py` test prints attack type labels | Producer → Streaming → Dashboard shows live alerts |
+| Jenkins build green on PR branch | Jenkins build green on PR branch | Jenkins build green on PR branch |
 
 ### Checkpoint PR-3 (Day 9–10) — Merge to main
 
@@ -458,12 +469,15 @@ git tag -a v1.0.0 -m "UNSW-NB15 NIDS - binary + multiclass, Cassandra + Redis"
 git push origin v1.0.0
 ```
 
+Jenkins will run one final build on `master` after the tag push. Confirm the Deploy stage completes successfully.
+
 ---
 
 ## Full Timeline at a Glance
 
 ```
-Day 1   [ALL]    Joint setup, sample.csv, scaffold, branch off
+Day 0   [P3]     Jenkins setup, Jenkinsfile + tests/ committed to master → CI live
+Day 1   [ALL]    Joint setup, sample.csv, scaffold, branch off, verify CI green
 Day 2   [P1]     preprocessing_utils.py, preprocess_unsw_nb15.py
         [P2]     config.py, config/__init__.py, label_harmonization.ipynb
         [P3]     docker-compose.yml (Cassandra+Redis), cassandra-init.cql
@@ -478,7 +492,7 @@ Day 5   [P1+P3]  Wire binary model → pipeline_runner, test with producer
 Day 6   [ALL]    Full end-to-end integration test, analytics.html
 Day 7   [P1]     alerts.html + dashboard.html final polish
         [P3]     base.html, settings.html, run.sh
-Day 8   [ALL]    Branch cleanup, PR descriptions
-Day 9   [HEAD]   Review + approve PRs
-Day 10  [ALL]    Merge, rebase, tag v1.0.0
+Day 8   [ALL]    Branch cleanup, PR descriptions, Jenkins green on all branches
+Day 9   [HEAD]   Review + approve PRs (Jenkins gate must be green to merge)
+Day 10  [ALL]    Merge, rebase, tag v1.0.0, confirm Jenkins Deploy stage passes
 ```

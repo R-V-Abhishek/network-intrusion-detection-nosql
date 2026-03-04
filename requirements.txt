@@ -1,3 +1,7 @@
 redis==5.0.8
-cassandra-driver==3.29.1
+cassandra-driver>=3.29.2
 pandas
+
+# ── Dev / CI ────────────────────────────────────────────────────────────────
+pytest>=8.0.0          # test runner — used by Jenkins in the Test stage
+flake8>=7.0.0          # linter — used by Jenkins in the Lint stage
