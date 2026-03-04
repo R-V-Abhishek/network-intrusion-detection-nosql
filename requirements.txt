@@ -3,3 +3,6 @@ cassandra-driver==3.29.1
 pandas
 scikit-learn
 pyarrow
+pyspark==3.5.1
+ipykernel
+jupyterlab
