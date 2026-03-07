@@ -1,6 +1,9 @@
+# ── Core Dependencies ───────────────────────────────────────────────────────
 redis==5.0.8
 cassandra-driver>=3.29.2
-pandas
+pandas>=2.0.0
+Flask>=3.0.0
+pyspark>=3.5.0
 
 # ── Dev / CI ────────────────────────────────────────────────────────────────
 pytest>=8.0.0          # test runner — used by Jenkins in the Test stage
