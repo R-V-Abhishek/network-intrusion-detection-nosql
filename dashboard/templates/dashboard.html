@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - NIDS{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <h1 class="mb-4"><i class="fas fa-tachometer-alt"></i> Dashboard</h1>
+    
+    <!-- Overview Stats -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card stat-card bg-primary text-white">
+                <div class="card-body">
+                    <h5 class="card-title"><i class="fas fa-exclamation-triangle"></i> Total Alerts</h5>
+                    <h2 id="total-alerts">--</h2>
+                    <small>Last 24 hours</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card stat-card bg-danger text-white">
+                <div class="card-body">
+                    <h5 class="card-title"><i class="fas fa-fire"></i> High Severity</h5>
+                    <h2 id="high-severity">--</h2>
+                    <small>Critical threats</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card stat-card bg-warning text-white">
+                <div class="card-body">
+                    <h5 class="card-title"><i class="fas fa-shield-alt"></i> Medium Severity</h5>
+                    <h2 id="medium-severity">--</h2>
+                    <small>Moderate threats</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card stat-card bg-info text-white">
+                <div class="card-body">
+                    <h5 class="card-title"><i class="fas fa-info-circle"></i> Low Severity</h5>
+                    <h2 id="low-severity">--</h2>
+                    <small>Minor alerts</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Live Feed Section -->
+    <div class="row">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header bg-dark text-white">
+                    <h5 class="mb-0"><i class="fas fa-stream"></i> Live Alert Feed</h5>
+                </div>
+                <div class="card-body" style="max-height: 400px; overflow-y: auto;">
+                    <div id="live-feed">
+                        <p class="text-muted text-center">Waiting for alerts...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header bg-secondary text-white">
+                    <h5 class="mb-0"><i class="fas fa-chart-pie"></i> Threat Distribution</h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="threatChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<script>
+    // This is a placeholder - Person 1 will complete the dashboard implementation
+    // during Week 2 Integration (Checkpoint INT-5)
+    
+    console.log('Dashboard page loaded - live feed and charts to be implemented by Person 1');
+    
+    // Placeholder for loading alerts
+    async function loadDashboardStats() {
+        // To be implemented: fetch stats from /api/alerts/stats
+        console.log('Stats loading to be implemented');
+    }
+    
+    // Placeholder for live feed
+    // To be implemented: Server-Sent Events from Redis pub/sub
+    
+    document.addEventListener('DOMContentLoaded', function() {
+        console.log('Dashboard ready for Person 1 to complete');
+    });
+</script>
+{% endblock %}
