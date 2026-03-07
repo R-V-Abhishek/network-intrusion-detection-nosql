@@ -1,39 +1,129 @@
 version: "3.9"
 
 services:
+  # ══════════════════════════════════════════════════════════════════════════
+  # MESSAGE BROKER — Kafka + Zookeeper
+  # ══════════════════════════════════════════════════════════════════════════
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.5.0
+    container_name: nids-zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    networks:
+      - nids_net
+
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: nids-kafka
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+    networks:
+      - nids_net
+
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: nids-kafka-ui
+    depends_on:
+      - kafka
+    ports:
+      - "8080:8080"
+    environment:
+      KAFKA_CLUSTERS_0_NAME: local
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
+    networks:
+      - nids_net
+
+  # ══════════════════════════════════════════════════════════════════════════
+  # STORAGE — Cassandra + Redis
+  # ══════════════════════════════════════════════════════════════════════════
+  cassandra:
+    image: cassandra:4.1
+    container_name: nids-cassandra
+    ports:
+      - "9042:9042"
+    environment:
+      CASSANDRA_CLUSTER_NAME: nids_cluster
+      CASSANDRA_DC: dc1
+      CASSANDRA_ENDPOINT_SNITCH: GossipingPropertyFileSnitch
+    volumes:
+      - cassandra_data:/var/lib/cassandra
+      - ./config/cassandra-init.cql:/docker-entrypoint-initdb.d/cassandra-init.cql
+    healthcheck:
+      test: ["CMD-SHELL", "cqlsh -e 'describe keyspaces'"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    networks:
+      - nids_net
+
+  cassandra-web:
+    image: ipushc/cassandra-web
+    container_name: nids-cassandra-web
+    depends_on:
+      - cassandra
+    ports:
+      - "8081:3000"
+    environment:
+      CASSANDRA_HOST: cassandra
+      CASSANDRA_PORT: 9042
+    networks:
+      - nids_net
+
+  redis:
+    image: redis:7.2-alpine
+    container_name: nids-redis
+    ports:
+      - "6379:6379"
+    command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - nids_net
+
+  redisinsight:
+    image: redislabs/redisinsight:latest
+    container_name: nids-redisinsight
+    depends_on:
+      - redis
+    ports:
+      - "5540:5540"
+    networks:
+      - nids_net
+
+  # ══════════════════════════════════════════════════════════════════════════
+  # DASHBOARD — Flask Web Application
+  # ══════════════════════════════════════════════════════════════════════════
   app:
     build: .
-    container_name: nids_app
+    container_name: nids-app
     depends_on:
       - redis
       - cassandra
+      - kafka
+    ports:
+      - "5000:5000"
     environment:
       REDIS_HOST: redis
       REDIS_PORT: 6379
       CASSANDRA_HOST: cassandra
       CASSANDRA_PORT: 9042
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
     volumes:
-      - ./src:/app/src
-    networks:
-      - nids_net
-
-  redis:
-    image: redis:7-alpine
-    container_name: nids_redis
-    expose:
-      - "6379"
-    networks:
-      - nids_net
-
-  cassandra:
-    image: cassandra:4.1
-    container_name: nids_cassandra
-    expose:
-      - "9042"
-    environment:
-      CASSANDRA_CLUSTER_NAME: nids_cluster
-    volumes:
-      - cassandra_data:/var/lib/cassandra
+      - ./:/app
     networks:
       - nids_net
 
