@@ -1,0 +1,276 @@
+{% extends "base.html" %}
+
+{% block title %}Settings - NIDS Dashboard{% endblock %}
+
+{% block extra_css %}
+<style>
+    .service-status {
+        padding: 12px;
+        border-radius: 8px;
+        margin-bottom: 10px;
+    }
+    .service-status.healthy {
+        background-color: #d4edda;
+        border-left: 4px solid #28a745;
+    }
+    .service-status.error {
+        background-color: #f8d7da;
+        border-left: 4px solid #dc3545;
+    }
+    .session-item {
+        border: 1px solid #dee2e6;
+        border-radius: 8px;
+        padding: 15px;
+        margin-bottom: 10px;
+        transition: all 0.2s;
+    }
+    .session-item:hover {
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    .btn-sm {
+        font-size: 0.875rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <h1 class="mb-4"><i class="fas fa-cog"></i> Settings</h1>
+
+    <!-- Service Health Status -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0"><i class="fas fa-heartbeat"></i> Service Health</h5>
+                </div>
+                <div class="card-body">
+                    <button class="btn btn-sm btn-outline-primary mb-3" onclick="checkHealth()">
+                        <i class="fas fa-sync-alt"></i> Refresh Status
+                    </button>
+                    
+                    <div id="health-status">
+                        <p class="text-muted">Click "Refresh Status" to check service health...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Session Management -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0"><i class="fas fa-database"></i> Session Management</h5>
+                </div>
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <div>
+                            <h6>Active Sessions</h6>
+                            <p class="text-muted mb-0">Manage detection sessions and associated alerts</p>
+                        </div>
+                        <div>
+                            <button class="btn btn-success" onclick="createNewSession()">
+                                <i class="fas fa-plus"></i> New Session
+                            </button>
+                            <button class="btn btn-warning" onclick="loadSessions()">
+                                <i class="fas fa-sync-alt"></i> Refresh
+                            </button>
+                            <button class="btn btn-danger" onclick="deleteAllSessions()">
+                                <i class="fas fa-trash-alt"></i> Delete All
+                            </button>
+                        </div>
+                    </div>
+
+                    <div id="sessions-list">
+                        <p class="text-muted">Loading sessions...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Check service health
+    async function checkHealth() {
+        const healthDiv = document.getElementById('health-status');
+        healthDiv.innerHTML = '<div class="spinner-border spinner-border-sm" role="status"></div> Checking...';
+        
+        try {
+            const response = await fetch('/api/health');
+            const data = await response.json();
+            
+            let html = '';
+            if (data.services.cassandra) {
+                const cassStatus = data.services.cassandra.status === 'connected' ? 'healthy' : 'error';
+                html += `
+                    <div class="service-status ${cassStatus}">
+                        <strong><i class="fas fa-database"></i> Cassandra</strong>: ${data.services.cassandra.status}
+                        ${data.services.cassandra.keyspace ? ` (Keyspace: ${data.services.cassandra.keyspace})` : ''}
+                        ${data.services.cassandra.error ? `<br><small>${data.services.cassandra.error}</small>` : ''}
+                    </div>
+                `;
+            }
+            
+            if (data.services.redis) {
+                const redisStatus = data.services.redis.status === 'connected' ? 'healthy' : 'error';
+                html += `
+                    <div class="service-status ${redisStatus}">
+                        <strong><i class="fas fa-memory"></i> Redis</strong>: ${data.services.redis.status}
+                        ${data.services.redis.host ? ` (${data.services.redis.host}:${data.services.redis.port})` : ''}
+                        ${data.services.redis.error ? `<br><small>${data.services.redis.error}</small>` : ''}
+                    </div>
+                `;
+            }
+            
+            healthDiv.innerHTML = html;
+        } catch (error) {
+            healthDiv.innerHTML = `<div class="alert alert-danger">Failed to check health: ${error.message}</div>`;
+        }
+    }
+
+    // Load all sessions
+    async function loadSessions() {
+        const listDiv = document.getElementById('sessions-list');
+        listDiv.innerHTML = '<div class="spinner-border spinner-border-sm" role="status"></div> Loading...';
+        
+        try {
+            const response = await fetch('/api/sessions');
+            const data = await response.json();
+            
+            if (data.sessions && data.sessions.length > 0) {
+                let html = '';
+                data.sessions.forEach(session => {
+                    html += `
+                        <div class="session-item">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <strong>Session ID:</strong> <code>${session.session_id}</code><br>
+                                    <strong>Dataset:</strong> ${session.dataset || 'N/A'}<br>
+                                    <strong>Start Time:</strong> ${session.start_time ? new Date(session.start_time).toLocaleString() : 'N/A'}<br>
+                                    <strong>Status:</strong> <span class="badge bg-${session.status === 'active' ? 'success' : 'secondary'}">${session.status || 'unknown'}</span>
+                                </div>
+                                <div>
+                                    <button class="btn btn-sm btn-primary" onclick="setCurrentSession('${session.session_id}')">
+                                        <i class="fas fa-check"></i> Set Active
+                                    </button>
+                                    <button class="btn btn-sm btn-danger" onclick="deleteSession('${session.session_id}')">
+                                        <i class="fas fa-trash"></i> Delete
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                });
+                listDiv.innerHTML = html;
+            } else {
+                listDiv.innerHTML = '<p class="text-muted">No sessions found. Create a new one to get started.</p>';
+            }
+        } catch (error) {
+            listDiv.innerHTML = `<div class="alert alert-danger">Failed to load sessions: ${error.message}</div>`;
+        }
+    }
+
+    // Create new session
+    async function createNewSession() {
+        try {
+            const response = await fetch('/api/session/new', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({dataset: 'unsw'})
+            });
+            const data = await response.json();
+            
+            if (data.success) {
+                alert(`New session created: ${data.session_id}`);
+                loadSessions();
+                loadCurrentSession();
+            } else {
+                alert(`Error: ${data.error}`);
+            }
+        } catch (error) {
+            alert(`Failed to create session: ${error.message}`);
+        }
+    }
+
+    // Set current session
+    async function setCurrentSession(sessionId) {
+        try {
+            const response = await fetch('/api/session/set', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({session_id: sessionId})
+            });
+            const data = await response.json();
+            
+            if (data.success) {
+                alert(`Current session set to: ${sessionId}`);
+                loadCurrentSession();
+            } else {
+                alert(`Error: ${data.error}`);
+            }
+        } catch (error) {
+            alert(`Failed to set session: ${error.message}`);
+        }
+    }
+
+    // Delete session
+    async function deleteSession(sessionId) {
+        if (!confirm(`Are you sure you want to delete session ${sessionId}?`)) {
+            return;
+        }
+        
+        try {
+            const response = await fetch('/api/session/delete', {
+                method: 'DELETE',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({session_id: sessionId})
+            });
+            const data = await response.json();
+            
+            if (data.success) {
+                alert('Session deleted successfully');
+                loadSessions();
+            } else {
+                alert(`Error: ${data.error}`);
+            }
+        } catch (error) {
+            alert(`Failed to delete session: ${error.message}`);
+        }
+    }
+
+    // Delete all sessions
+    async function deleteAllSessions() {
+        if (!confirm('Are you sure you want to delete ALL sessions? This cannot be undone!')) {
+            return;
+        }
+        
+        try {
+            const response = await fetch('/api/sessions/delete-all', {
+                method: 'DELETE'
+            });
+            const data = await response.json();
+            
+            if (data.success) {
+                alert('All sessions deleted successfully');
+                loadSessions();
+                loadCurrentSession();
+            } else {
+                alert(`Error: ${data.error}`);
+            }
+        } catch (error) {
+            alert(`Failed to delete all sessions: ${error.message}`);
+        }
+    }
+
+    // Load sessions on page load
+    document.addEventListener('DOMContentLoaded', function() {
+        loadSessions();
+        checkHealth();
+    });
+</script>
+{% endblock %}
