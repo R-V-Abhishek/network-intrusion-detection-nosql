@@ -1,6 +1,10 @@
 redis==5.0.8
 cassandra-driver>=3.29.2
 pandas
+scikit-learn
+pyarrowkafka-python>=2.0.0pyspark==3.5.1
+ipykernel
+jupyterlab
 
 # ── Dev / CI ────────────────────────────────────────────────────────────────
 pytest>=8.0.0          # test runner — used by Jenkins in the Test stage
