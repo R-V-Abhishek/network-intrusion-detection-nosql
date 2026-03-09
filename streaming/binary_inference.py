@@ -153,7 +153,7 @@ if __name__ == "__main__":
     MODEL_DIR = REPO_ROOT / "models"
     SAMPLE_PATH = str(REPO_ROOT / "data" / "UNSW-NB15" / "sample.csv")
     MODEL_PATH = str(MODEL_DIR / "unsw_gbt_binary_classifier")
-    SCALER_PATH = str(MODEL_DIR / "unsw_scaler")
+    SCALER_PATH = str(MODEL_DIR / "unsw_nb15_scaler")
 
     if not Path(MODEL_PATH).exists():
         print(f"[smoke-test] Model not found at {MODEL_PATH}")
