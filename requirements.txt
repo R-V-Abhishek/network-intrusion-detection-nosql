@@ -2,8 +2,7 @@ redis==5.0.8
 cassandra-driver>=3.29.2
 pandas
 scikit-learn
-pyarrow
-pyspark==3.5.1
+pyarrowkafka-python>=2.0.0pyspark==3.5.1
 ipykernel
 jupyterlab
 
