@@ -84,9 +84,9 @@ UNSW_ATTACK_TYPE_MAPPING = {
 MODEL_PATHS = {
     "unsw_gbt_binary": "models/unsw_gbt_binary_model",
     "unsw_multiclass": "models/unsw_multiclass_model",
-    "unsw_nb15_scaler": "models/unsw_nb15_scaler.pkl",
-    "training_results": "models/training_results.json",
-    "label_mapping": "models/label_mapping.json",
+    "unsw_nb15_scaler": "models/unsw_nb15_scaler",
+    "training_results": "models/unsw_training_results.json",
+    "label_mapping": "models/unsw_label_mapping.json",
 }
 
 # ────────────────────────────────────────────────────────────────────────────
