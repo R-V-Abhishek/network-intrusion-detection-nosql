@@ -113,6 +113,8 @@ def run_pipeline(data_source: str = "unsw", session_id: Optional[str] = None):
         data_source: Data source name (default: "unsw")
         session_id: Optional session ID (creates new if None)
     """
+    global STUB_MODELS
+
     print("=" * 80)
     print(f"[Pipeline] Starting NIDS Streaming Pipeline")
     print(f"[Pipeline] Data source: {data_source}")
@@ -140,10 +142,7 @@ def run_pipeline(data_source: str = "unsw", session_id: Optional[str] = None):
     if not STUB_MODELS:
         print("[Pipeline] Loading models...")
         try:
-            binary_model, scaler = load_binary_model(
-                MODEL_PATHS["unsw_gbt_binary"],
-                MODEL_PATHS["unsw_nb15_scaler"]
-            )
+            binary_model, scaler = load_binary_model(MODEL_PATHS["unsw_gbt_binary"], MODEL_PATHS["unsw_nb15_scaler"])
             multiclass_model = load_multiclass_model(
                 MODEL_PATHS["unsw_multiclass"]
             )
@@ -157,7 +156,6 @@ def run_pipeline(data_source: str = "unsw", session_id: Optional[str] = None):
         except Exception as e:
             print(f"[Pipeline] ERROR loading models: {e}")
             print("[Pipeline] Falling back to STUB mode")
-            global STUB_MODELS
             STUB_MODELS = True
     
     # Build streaming DataFrame
