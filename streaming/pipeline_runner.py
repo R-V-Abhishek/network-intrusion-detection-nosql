@@ -4,7 +4,7 @@ Pipeline runner for streaming inference.
 Main entrypoint that orchestrates:
 - Kafka stream consumption
 - Binary and multiclass inference
-- Alert storage in Cassandra + Redis
+- Alert storage in Cassandra + ReCheckpoint INT-1 (Day 5 morning) — P1 + P3 syncdis
 - Session management
 
 Run with: python -m streaming.pipeline_runner
@@ -38,6 +38,25 @@ if not STUB_MODELS:
     from streaming.multiclass_inference import load_multiclass_model, apply_multiclass_inference
 
 
+def _configure_windows_hadoop() -> None:
+    """Configure Hadoop/winutils environment for Spark on Windows."""
+    if os.name != "nt":
+        return
+
+    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    hadoop_home = os.path.join(project_root, "tools", "hadoop")
+    hadoop_bin = os.path.join(hadoop_home, "bin")
+    winutils_path = os.path.join(hadoop_bin, "winutils.exe")
+
+    if os.path.exists(winutils_path):
+        os.environ["HADOOP_HOME"] = hadoop_home
+        os.environ["hadoop.home.dir"] = hadoop_home
+        path_value = os.environ.get("PATH", "")
+        if hadoop_bin not in path_value.split(os.pathsep):
+            os.environ["PATH"] = hadoop_bin + os.pathsep + path_value
+        print(f"[Pipeline] HADOOP_HOME configured: {hadoop_home}")
+
+
 def create_spark_session() -> SparkSession:
     """
     Create and configure Spark session for streaming.
@@ -45,6 +64,8 @@ def create_spark_session() -> SparkSession:
     Returns:
         Configured SparkSession
     """
+    _configure_windows_hadoop()
+
     spark = (
         SparkSession.builder
         .appName(SPARK_CONFIG["app_name"])
@@ -162,6 +183,22 @@ def run_pipeline(data_source: str = "unsw", session_id: Optional[str] = None):
     stream_df = build_kafka_stream(spark, KAFKA_CONFIG["topic"])
     
     # Batch processing function
+    def safe_int(value, default=0):
+        try:
+            if value is None:
+                return default
+            return int(value)
+        except (TypeError, ValueError):
+            return default
+
+    def safe_float(value, default=0.0):
+        try:
+            if value is None:
+                return default
+            return float(value)
+        except (TypeError, ValueError):
+            return default
+
     def process_batch(batch_df: DataFrame, batch_id: int):
         """
         Process each micro-batch from Kafka stream.
@@ -209,22 +246,22 @@ def run_pipeline(data_source: str = "unsw", session_id: Optional[str] = None):
                 for row in alerts:
                     # Build alert dictionary
                     alert = {
-                        "binary_prediction": int(row.binary_prediction),
-                        "binary_probability": float(row.binary_probability),
+                        "binary_prediction": safe_int(getattr(row, "binary_prediction", 0)),
+                        "binary_probability": safe_float(getattr(row, "binary_probability", 0.0)),
                         "attack_type": row.attack_type if hasattr(row, "attack_type") else "Unknown",
-                        "attack_confidence": float(row.attack_confidence) if hasattr(row, "attack_confidence") else 0.0,
+                        "attack_confidence": safe_float(getattr(row, "attack_confidence", 0.0)),
                         "severity": ALERT_CONFIG["severity_map"].get(
                             row.attack_type if hasattr(row, "attack_type") else "Unknown",
                             "medium"
                         ),
                         "src_ip": row.src_ip if hasattr(row, "src_ip") else "",
                         "dst_ip": row.dst_ip if hasattr(row, "dst_ip") else "",
-                        "src_port": int(row.src_port) if hasattr(row, "src_port") else 0,
-                        "dst_port": int(row.dst_port) if hasattr(row, "dst_port") else 0,
+                        "src_port": safe_int(getattr(row, "src_port", 0)),
+                        "dst_port": safe_int(getattr(row, "dst_port", 0)),
                         "protocol": row.proto if hasattr(row, "proto") else "",
-                        "sbytes": int(row.sbytes) if hasattr(row, "sbytes") else 0,
-                        "dbytes": int(row.dbytes) if hasattr(row, "dbytes") else 0,
-                        "rate": float(row.rate) if hasattr(row, "rate") else 0.0,
+                        "sbytes": safe_int(getattr(row, "sbytes", 0)),
+                        "dbytes": safe_int(getattr(row, "dbytes", 0)),
+                        "rate": safe_float(getattr(row, "rate", 0.0)),
                     }
                     
                     # Store alert

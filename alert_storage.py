@@ -104,7 +104,7 @@ class AlertStorage:
                 session_id, alert_time, alert_id, binary_prediction, binary_probability,
                 attack_type, attack_confidence, severity, src_ip, dst_ip,
                 src_port, dst_port, protocol, sbytes, dbytes, rate, feature_vector, created_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         """
         
         self.cassandra_session.execute(query, (
@@ -134,7 +134,7 @@ class AlertStorage:
         counter_query = """
             UPDATE alert_stats_by_session
             SET alert_count = alert_count + 1
-            WHERE session_id = ? AND attack_type = ? AND severity = ?
+            WHERE session_id = %s AND attack_type = %s AND severity = %s
         """
         self.cassandra_session.execute(counter_query, (session_id, attack_type, severity))
         
@@ -182,17 +182,17 @@ class AlertStorage:
         if attack_type:
             query = """
                 SELECT * FROM intrusion_alerts
-                WHERE session_id = ? AND attack_type = ?
+                WHERE session_id = %s AND attack_type = %s
                 ORDER BY alert_time DESC
-                LIMIT ?
+                LIMIT %s
             """
             rows = self.cassandra_session.execute(query, (session_id, attack_type, limit))
         else:
             query = """
                 SELECT * FROM intrusion_alerts
-                WHERE session_id = ?
+                WHERE session_id = %s
                 ORDER BY alert_time DESC
-                LIMIT ?
+                LIMIT %s
             """
             rows = self.cassandra_session.execute(query, (session_id, limit))
         
@@ -233,7 +233,7 @@ class AlertStorage:
         query = """
             SELECT attack_type, severity, alert_count
             FROM alert_stats_by_session
-            WHERE session_id = ?
+            WHERE session_id = %s
         """
         rows = self.cassandra_session.execute(query, (session_id,))
         
@@ -327,7 +327,7 @@ class AlertStorage:
         """
         query = """
             INSERT INTO sessions (session_id, dataset, start_time, status, created_at)
-            VALUES (?, ?, ?, ?, ?)
+            VALUES (%s, %s, %s, %s, %s)
         """
         now = datetime.utcnow()
         self.cassandra_session.execute(query, (
@@ -359,7 +359,7 @@ class AlertStorage:
         query = """
             SELECT session_id, dataset, start_time, end_time, total_records, total_alerts, status
             FROM sessions
-            LIMIT ?
+            LIMIT %s
         """
         rows = self.cassandra_session.execute(query, (limit,))
         
@@ -389,19 +389,19 @@ class AlertStorage:
         """
         # Delete from sessions table
         self.cassandra_session.execute(
-            "DELETE FROM sessions WHERE session_id = ?",
+            "DELETE FROM sessions WHERE session_id = %s",
             (session_id,)
         )
         
         # Delete all alerts for this session
         self.cassandra_session.execute(
-            "DELETE FROM intrusion_alerts WHERE session_id = ?",
+            "DELETE FROM intrusion_alerts WHERE session_id = %s",
             (session_id,)
         )
         
         # Delete stats
         self.cassandra_session.execute(
-            "DELETE FROM alert_stats_by_session WHERE session_id = ?",
+            "DELETE FROM alert_stats_by_session WHERE session_id = %s",
             (session_id,)
         )
         
