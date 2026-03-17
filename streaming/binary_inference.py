@@ -9,9 +9,12 @@ from typing import Tuple
 
 from pyspark.ml.classification import GBTClassificationModel
 from pyspark.ml.feature import StandardScalerModel, VectorAssembler
+from pyspark.ml.functions import vector_to_array
 from pyspark.sql import DataFrame
 from pyspark.sql import functions as F
 from pyspark.sql.types import DoubleType
+
+from config.config import UNSW_FEATURE_CONFIG
 
 
 def load_binary_model(
@@ -53,22 +56,34 @@ def assemble_features(df: DataFrame, feature_cols: list) -> DataFrame:
     DataFrame
         DataFrame with an added 'features_raw' column.
     """
-    # Cast all feature columns to DoubleType and fill nulls/infinities
-    for col in feature_cols:
-        if col in df.columns:
-            df = df.withColumn(
-                col,
-                F.when(F.col(col).isNull(), 0.0)
-                .when(F.col(col) == float("inf"), 0.0)
-                .when(F.col(col) == float("-inf"), 0.0)
-                .otherwise(F.col(col).cast(DoubleType())),
-            )
+    # Build one select() expression per feature col so the query plan stays flat.
+    # Calling withColumn() in a loop creates O(n) nested plan nodes which causes
+    # Catalyst optimizer to hang (exponential cost) on wide feature sets.
+    existing = set(df.columns)
+    passthrough = [c for c in df.columns if c not in feature_cols]
 
-    available = [c for c in feature_cols if c in df.columns]
+    feature_exprs = []
+    for col_name in feature_cols:
+        if col_name in existing:
+            expr = (
+                F.when(F.col(col_name).isNull(), F.lit(0.0))
+                .when(F.col(col_name) == float("inf"), F.lit(0.0))
+                .when(F.col(col_name) == float("-inf"), F.lit(0.0))
+                .otherwise(F.col(col_name).cast(DoubleType()))
+                .alias(col_name)
+            )
+        else:
+            expr = F.lit(0.0).cast(DoubleType()).alias(col_name)
+        feature_exprs.append(expr)
+
+    df = df.select(
+        [F.col(c) for c in passthrough] + feature_exprs
+    )
+
     assembler = VectorAssembler(
-        inputCols=available,
+        inputCols=feature_cols,
         outputCol="features_raw",
-        handleInvalid="skip",
+        handleInvalid="keep",
     )
     return assembler.transform(df)
 
@@ -105,16 +120,9 @@ def apply_binary_inference(
     """
     # Assemble raw feature vector if not already present
     if "features_raw" not in df.columns:
-        # Derive feature list from the scaler's input metadata where possible;
-        # fall back to all numeric columns except known label/id cols.
-        exclude = {"label", "binary_label", "multiclass_label", "attack_cat", "id"}
-        numeric_cols = [
-            f.name
-            for f in df.schema.fields
-            if str(f.dataType) in ("DoubleType()", "FloatType()", "IntegerType()", "LongType()")
-            and f.name not in exclude
-        ]
-        df = assemble_features(df, numeric_cols)
+        # Use the exact training feature order expected by the scaler/model.
+        feature_cols = UNSW_FEATURE_CONFIG["numeric_features"]
+        df = assemble_features(df, feature_cols)
 
     # Scale features
     df = scaler.transform(df).withColumnRenamed("features_scaled", "features_vec")
@@ -128,10 +136,15 @@ def apply_binary_inference(
     # Rename model output columns to pipeline-standard names
     df = df.withColumnRenamed("prediction", "binary_prediction")
 
-    # Extract probability of the positive (Attack) class from the probability vector
-    extract_prob = F.udf(lambda v: float(v[1]) if v is not None else 0.0, DoubleType())
-    df = df.withColumn("binary_probability", extract_prob(F.col("probability")))
-    df = df.drop("probability", "rawPrediction")
+    # Extract probability of the positive (Attack) class from the probability vector.
+    # Uses vector_to_array (native Spark, no Python UDF) to avoid Python worker crashes
+    # caused by WinError 10038 on Windows when using F.udf with socket-based workers.
+    df = df.withColumn("probability_arr", vector_to_array(F.col("probability")))
+    df = df.withColumn(
+        "binary_probability",
+        F.coalesce(F.col("probability_arr")[1], F.lit(0.0)).cast(DoubleType()),
+    )
+    df = df.drop("probability", "rawPrediction", "probability_arr")
 
     return df
 

@@ -34,8 +34,8 @@ from kafka.errors import NoBrokersAvailable
 # Defaults
 # ---------------------------------------------------------------------------
 REPO_ROOT = Path(__file__).resolve().parent
-DEFAULT_BOOTSTRAP = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092")
-DEFAULT_TOPIC = os.getenv("KAFKA_TOPIC", "nids-unsw")
+DEFAULT_BOOTSTRAP = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "localhost:19092")
+DEFAULT_TOPIC = os.getenv("KAFKA_TOPIC", "network-traffic")
 DEFAULT_SAMPLE = str(REPO_ROOT / "data" / "UNSW-NB15" / "sample.csv")
 DEFAULT_RATE = 10  # rows per second
 
@@ -134,7 +134,7 @@ def publish(
                     print(f"[Producer] Sent {total_sent} messages...", end="\r")
 
             producer.flush()
-            print(f"[Producer] ✓ Flushed batch — total sent: {total_sent}")
+            print(f"[Producer] OK Flushed batch -- total sent: {total_sent}")
 
             if not loop:
                 break

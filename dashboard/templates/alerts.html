@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card">
+  <h2>Alerts</h2>
+  <p class="muted">Filter and inspect alert events.</p>
+  <div class="row">
+    <label>Attack type: <input id="attack-type" placeholder="e.g. DoS"></label>
+    <label>Limit: <input id="limit" type="number" value="100" min="1" max="2000"></label>
+    <button onclick="loadAlerts()">Apply</button>
+  </div>
+</div>
+
+<div class="card">
+  <table>
+    <thead>
+      <tr>
+        <th>Time</th>
+        <th>Session</th>
+        <th>Attack Type</th>
+        <th>Severity</th>
+        <th>Probability</th>
+      </tr>
+    </thead>
+    <tbody id="alerts-table"></tbody>
+  </table>
+</div>
+
+<script>
+async function loadAlerts() {
+  const attackType = document.getElementById('attack-type').value.trim();
+  const limit = document.getElementById('limit').value;
+  const params = new URLSearchParams({ limit });
+  if (attackType) params.set('attack_type', attackType);
+
+  const res = await fetch('/api/alerts?' + params.toString());
+  const json = await res.json();
+  const tbody = document.getElementById('alerts-table');
+  tbody.innerHTML = '';
+  (json.alerts || []).forEach(row => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${row.alert_time || ''}</td>
+      <td>${row.session_id || ''}</td>
+      <td>${row.attack_type || 'Unknown'}</td>
+      <td><span class="pill ${row.severity || 'info'}">${row.severity || 'info'}</span></td>
+      <td>${(row.binary_probability || 0).toFixed(3)}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+loadAlerts();
+</script>
+{% endblock %}

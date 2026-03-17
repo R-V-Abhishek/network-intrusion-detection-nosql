@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card">
+  <h2>Settings</h2>
+  <p class="muted">Session management and service status.</p>
+</div>
+
+<div class="card">
+  <h3>Current Session</h3>
+  <div id="current-session">loading...</div>
+  <div class="row" style="margin-top: 10px;">
+    <button onclick="newSession()">New Session</button>
+    <button onclick="deleteAll()">Delete All Sessions</button>
+  </div>
+</div>
+
+<div class="card">
+  <h3>Sessions</h3>
+  <pre id="sessions"></pre>
+</div>
+
+<div class="card">
+  <h3>Health</h3>
+  <pre id="health"></pre>
+</div>
+
+<script>
+async function refreshSettings() {
+  const cur = await (await fetch('/api/session/current')).json();
+  document.getElementById('current-session').textContent = cur.session_id;
+
+  const sessions = await (await fetch('/api/sessions')).json();
+  document.getElementById('sessions').textContent = JSON.stringify(sessions, null, 2);
+
+  const health = await (await fetch('/api/health')).json();
+  document.getElementById('health').textContent = JSON.stringify(health, null, 2);
+}
+
+async function newSession() {
+  await fetch('/api/session/new', { method: 'POST' });
+  await refreshSettings();
+}
+
+async function deleteAll() {
+  await fetch('/api/sessions/delete-all', { method: 'DELETE' });
+  await refreshSettings();
+}
+
+refreshSettings();
+</script>
+{% endblock %}

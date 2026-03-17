@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card">
+  <h2>Analytics</h2>
+  <p class="muted">Breakdown by attack type and severity.</p>
+</div>
+
+<div class="row">
+  <div class="card" style="flex: 1; min-width: 300px;">
+    <h3>By Severity</h3>
+    <pre id="by-severity"></pre>
+  </div>
+  <div class="card" style="flex: 1; min-width: 300px;">
+    <h3>By Attack Type</h3>
+    <pre id="by-type"></pre>
+  </div>
+</div>
+
+<div class="card">
+  <h3>Timeline</h3>
+  <pre id="timeline"></pre>
+</div>
+
+<script>
+async function refreshAnalytics() {
+  const statsRes = await fetch('/api/alerts/stats');
+  const stats = await statsRes.json();
+  document.getElementById('by-severity').textContent = JSON.stringify(stats.by_severity || {}, null, 2);
+  document.getElementById('by-type').textContent = JSON.stringify(stats.by_attack_type || {}, null, 2);
+
+  const timelineRes = await fetch('/api/alerts/timeline?hours=24&interval=60');
+  const timeline = await timelineRes.json();
+  document.getElementById('timeline').textContent = JSON.stringify(timeline, null, 2);
+}
+
+refreshAnalytics();
+setInterval(refreshAnalytics, 10000);
+</script>
+{% endblock %}

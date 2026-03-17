@@ -17,7 +17,7 @@ import os
 # ────────────────────────────────────────────────────────────────────────────
 
 KAFKA_CONFIG = {
-    "bootstrap_servers": "localhost:9092",
+    "bootstrap_servers": os.getenv("KAFKA_BOOTSTRAP_SERVERS", "localhost:19092"),
     "topic": "network-traffic",
     "group_id": "nids-consumer-group",
     "auto_offset_reset": "latest",
@@ -82,11 +82,11 @@ UNSW_ATTACK_TYPE_MAPPING = {
 # ────────────────────────────────────────────────────────────────────────────
 
 MODEL_PATHS = {
-    "unsw_gbt_binary": "models/unsw_gbt_binary_model",
-    "unsw_multiclass": "models/unsw_multiclass_model",
-    "unsw_nb15_scaler": "models/unsw_nb15_scaler.pkl",
-    "training_results": "models/training_results.json",
-    "label_mapping": "models/label_mapping.json",
+    "unsw_gbt_binary": "models/unsw_gbt_binary_classifier",
+    "unsw_multiclass": "models/unsw_rf_multiclass_classifier",
+    "unsw_nb15_scaler": "models/unsw_nb15_scaler",
+    "training_results": "models/unsw_training_results.json",
+    "label_mapping": "models/unsw_label_mapping.json",
 }
 
 # ────────────────────────────────────────────────────────────────────────────
@@ -121,11 +121,12 @@ ALERT_CONFIG = {
 # ────────────────────────────────────────────────────────────────────────────
 
 STREAMING_CONFIG = {
-    "trigger_interval": "10 seconds",
+    "trigger_interval": os.getenv("STREAMING_TRIGGER_INTERVAL", "30 seconds"),
     "watermark_delay": "30 seconds",
     "output_mode": "append",
     "checkpoint_dir": "/tmp/spark_checkpoints",
     "batch_size": 1000,
+    "max_offsets_per_trigger": int(os.getenv("STREAMING_MAX_OFFSETS_PER_TRIGGER", "100")),
 }
 
 # ────────────────────────────────────────────────────────────────────────────
@@ -153,8 +154,8 @@ PRODUCER_CONFIG = {
 # ────────────────────────────────────────────────────────────────────────────
 
 CASSANDRA_CONFIG = {
-    "contact_points": ["localhost"],
-    "port": 9042,
+    "contact_points": [os.getenv("CASSANDRA_HOST", "localhost")],
+    "port": int(os.getenv("CASSANDRA_PORT", "9042")),
     "keyspace": "nids",
     "tables": {
         "alerts": "alerts",
@@ -167,10 +168,12 @@ CASSANDRA_CONFIG = {
 # ────────────────────────────────────────────────────────────────────────────
 
 REDIS_CONFIG = {
-    "host": "localhost",
-    "port": 6379,
+    "host": os.getenv("REDIS_HOST", "localhost"),
+    "port": int(os.getenv("REDIS_PORT", "6379")),
     "db": 0,
     "decode_responses": True,
+    "socket_connect_timeout": float(os.getenv("REDIS_SOCKET_CONNECT_TIMEOUT", "3")),
+    "socket_timeout": float(os.getenv("REDIS_SOCKET_TIMEOUT", "8")),
 }
 
 # ────────────────────────────────────────────────────────────────────────────

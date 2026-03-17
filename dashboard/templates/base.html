@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>NIDS Dashboard</title>
+  <style>
+    :root {
+      --bg: #f5f8fc;
+      --text: #10263f;
+      --muted: #60738a;
+      --card: #ffffff;
+      --line: #dce7f3;
+      --accent: #0a6ed1;
+      --danger: #bf2f45;
+      --ok: #16794a;
+    }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", Tahoma, sans-serif;
+      color: var(--text);
+      background: radial-gradient(circle at 20% 0%, #e9f2ff, var(--bg) 45%);
+    }
+    .layout {
+      display: grid;
+      grid-template-columns: 220px 1fr;
+      min-height: 100vh;
+    }
+    nav {
+      border-right: 1px solid var(--line);
+      padding: 24px 16px;
+      background: #f0f6ff;
+    }
+    nav h1 {
+      margin: 0 0 14px;
+      font-size: 18px;
+    }
+    nav a {
+      display: block;
+      padding: 8px 10px;
+      margin-bottom: 6px;
+      text-decoration: none;
+      color: var(--text);
+      border-radius: 8px;
+    }
+    nav a:hover {
+      background: #dbe9fa;
+    }
+    main {
+      padding: 22px;
+    }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 16px;
+      margin-bottom: 14px;
+      box-shadow: 0 6px 20px rgba(16, 38, 63, 0.06);
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    th, td {
+      text-align: left;
+      padding: 10px;
+      border-bottom: 1px solid var(--line);
+      font-size: 14px;
+    }
+    .muted {
+      color: var(--muted);
+      font-size: 13px;
+    }
+    .row {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .pill {
+      display: inline-block;
+      padding: 4px 8px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+    .pill.high { background: #ffe3e7; color: var(--danger); }
+    .pill.info { background: #dbe9fa; color: var(--accent); }
+    .pill.low { background: #e3f7ea; color: var(--ok); }
+    @media (max-width: 900px) {
+      .layout { grid-template-columns: 1fr; }
+      nav { border-right: 0; border-bottom: 1px solid var(--line); }
+    }
+  </style>
+</head>
+<body>
+  <div class="layout">
+    <nav>
+      <h1>NIDS</h1>
+      <a href="/">Dashboard</a>
+      <a href="/alerts">Alerts</a>
+      <a href="/analytics">Analytics</a>
+      <a href="/settings">Settings</a>
+    </nav>
+    <main>
+      {% block content %}{% endblock %}
+    </main>
+  </div>
+</body>
+</html>
