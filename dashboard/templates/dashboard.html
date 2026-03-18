@@ -1,56 +1,148 @@
 {% extends "base.html" %}
 {% block content %}
-<div class="card">
+<div class="page-header">
   <h2>Live Dashboard</h2>
-  <p class="muted">Overview of current session alerts.</p>
-  <div class="row">
-    <div class="card" style="min-width: 220px; margin: 0;">
-      <div class="muted">Total Alerts</div>
-      <div id="total-alerts" style="font-size: 28px; font-weight: 700;">0</div>
-    </div>
-    <div class="card" style="min-width: 220px; margin: 0;">
-      <div class="muted">Current Session</div>
-      <div id="session-id" style="font-size: 15px; font-weight: 600;">loading...</div>
-    </div>
+  <p>Real-time overview of intrusion detection alerts for the current session.</p>
+</div>
+
+<!-- Stat cards -->
+<div class="grid-4" style="margin-bottom: 16px;">
+  <div class="card" style="margin-bottom:0">
+    <div class="stat-label">Total Alerts</div>
+    <div class="stat-value" id="total-alerts" style="color: var(--accent);">0</div>
+  </div>
+  <div class="card" style="margin-bottom:0">
+    <div class="stat-label">High Severity</div>
+    <div class="stat-value" id="high-count" style="color: var(--danger);">0</div>
+  </div>
+  <div class="card" style="margin-bottom:0">
+    <div class="stat-label">Medium Severity</div>
+    <div class="stat-value" id="medium-count" style="color: var(--warn);">0</div>
+  </div>
+  <div class="card" style="margin-bottom:0">
+    <div class="stat-label">Low Severity</div>
+    <div class="stat-value" id="low-count" style="color: var(--ok);">0</div>
   </div>
 </div>
 
+<div class="grid-2">
+  <!-- Severity Doughnut Chart -->
+  <div class="card">
+    <h3>Threat Severity</h3>
+    <div style="max-width: 280px; margin: 0 auto;">
+      <canvas id="severity-chart"></canvas>
+    </div>
+  </div>
+
+  <!-- Session Info -->
+  <div class="card">
+    <h3>Session Info</h3>
+    <table>
+      <tr><td class="muted">Session ID</td><td id="session-id" style="font-weight:600;font-family:monospace;font-size:13px;">loading...</td></tr>
+      <tr><td class="muted">Status</td><td><span class="pill info">Active</span></td></tr>
+    </table>
+  </div>
+</div>
+
+<!-- Recent Alerts Feed -->
 <div class="card">
-  <h3>Recent Alerts</h3>
+  <h3>Live Alert Feed</h3>
   <table>
     <thead>
-      <tr><th>Time</th><th>Type</th><th>Severity</th><th>Confidence</th></tr>
+      <tr>
+        <th>Time</th>
+        <th>Attack Type</th>
+        <th>Severity</th>
+        <th>Confidence</th>
+        <th>Source</th>
+        <th>Destination</th>
+      </tr>
     </thead>
     <tbody id="recent-table"></tbody>
   </table>
+  <p class="muted" style="margin-top:10px;text-align:center;" id="feed-status">Auto-refreshes every 5 seconds</p>
 </div>
 
 <script>
-async function refreshDashboard() {
-  const sessionRes = await fetch('/api/session/current');
-  const sessionJson = await sessionRes.json();
-  document.getElementById('session-id').textContent = sessionJson.session_id;
+let severityChart = null;
 
-  const statsRes = await fetch('/api/alerts/stats');
-  const stats = await statsRes.json();
-  document.getElementById('total-alerts').textContent = stats.total || 0;
-
-  const alertsRes = await fetch('/api/alerts/recent?limit=10');
-  const alerts = await alertsRes.json();
-  const body = document.getElementById('recent-table');
-  body.innerHTML = '';
-  alerts.forEach(row => {
-    const tr = document.createElement('tr');
-    tr.innerHTML = `
-      <td>${row.alert_time || ''}</td>
-      <td>${row.attack_type || 'Unknown'}</td>
-      <td><span class="pill ${row.severity || 'info'}">${row.severity || 'info'}</span></td>
-      <td>${(row.binary_probability || 0).toFixed(3)}</td>
-    `;
-    body.appendChild(tr);
+function initCharts() {
+  const ctx = document.getElementById('severity-chart').getContext('2d');
+  severityChart = new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+      labels: ['High', 'Medium', 'Low', 'Info'],
+      datasets: [{
+        data: [0, 0, 0, 0],
+        backgroundColor: [
+          'rgba(244, 63, 94, 0.8)',
+          'rgba(245, 158, 11, 0.8)',
+          'rgba(16, 185, 129, 0.8)',
+          'rgba(56, 189, 248, 0.8)'
+        ],
+        borderColor: '#1a1f2e',
+        borderWidth: 3,
+        hoverOffset: 6
+      }]
+    },
+    options: {
+      responsive: true,
+      cutout: '65%',
+      plugins: {
+        legend: { position: 'bottom', labels: { color: '#8892a4', padding: 16, font: { family: 'Inter', size: 12 } } }
+      }
+    }
   });
 }
 
+async function refreshDashboard() {
+  try {
+    const sessionRes = await fetch('/api/session/current');
+    const sessionJson = await sessionRes.json();
+    document.getElementById('session-id').textContent = sessionJson.session_id;
+
+    const statsRes = await fetch('/api/alerts/stats');
+    const stats = await statsRes.json();
+    document.getElementById('total-alerts').textContent = stats.total || 0;
+
+    const bySev = stats.by_severity || {};
+    const high = bySev.high || 0;
+    const medium = bySev.medium || 0;
+    const low = bySev.low || 0;
+    const info = bySev.info || 0;
+
+    document.getElementById('high-count').textContent = high;
+    document.getElementById('medium-count').textContent = medium;
+    document.getElementById('low-count').textContent = low;
+
+    if (severityChart) {
+      severityChart.data.datasets[0].data = [high, medium, low, info];
+      severityChart.update('none');
+    }
+
+    const alertsRes = await fetch('/api/alerts/recent?limit=15');
+    const alerts = await alertsRes.json();
+    const body = document.getElementById('recent-table');
+    body.innerHTML = '';
+    (alerts || []).forEach(row => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td style="font-family:monospace;font-size:12px;">${(row.alert_time || '').substring(11, 19)}</td>
+        <td><strong>${row.attack_type || 'Unknown'}</strong></td>
+        <td><span class="pill ${row.severity || 'info'}">${row.severity || 'info'}</span></td>
+        <td>${(row.binary_probability || 0).toFixed(3)}</td>
+        <td style="font-family:monospace;font-size:12px;">${row.src_ip || '—'}:${row.src_port || ''}</td>
+        <td style="font-family:monospace;font-size:12px;">${row.dst_ip || '—'}:${row.dst_port || ''}</td>
+      `;
+      body.appendChild(tr);
+    });
+    document.getElementById('feed-status').textContent = `Last updated: ${new Date().toLocaleTimeString()} · Auto-refreshes every 5s`;
+  } catch (e) {
+    document.getElementById('feed-status').textContent = 'Error fetching data — retrying...';
+  }
+}
+
+initCharts();
 refreshDashboard();
 setInterval(refreshDashboard, 5000);
 </script>

@@ -4,58 +4,111 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>NIDS Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
   <style>
     :root {
-      --bg: #f5f8fc;
-      --text: #10263f;
-      --muted: #60738a;
-      --card: #ffffff;
-      --line: #dce7f3;
-      --accent: #0a6ed1;
-      --danger: #bf2f45;
-      --ok: #16794a;
+      --bg: #0f1117;
+      --bg2: #161923;
+      --text: #e2e8f0;
+      --muted: #8892a4;
+      --card: #1a1f2e;
+      --card-hover: #1e2438;
+      --line: #2a2f42;
+      --accent: #6366f1;
+      --accent-glow: rgba(99, 102, 241, 0.25);
+      --danger: #f43f5e;
+      --danger-bg: rgba(244, 63, 94, 0.12);
+      --ok: #10b981;
+      --ok-bg: rgba(16, 185, 129, 0.12);
+      --warn: #f59e0b;
+      --warn-bg: rgba(245, 158, 11, 0.12);
+      --info: #38bdf8;
+      --info-bg: rgba(56, 189, 248, 0.12);
+      --radius: 12px;
     }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
-      margin: 0;
-      font-family: "Segoe UI", Tahoma, sans-serif;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
       color: var(--text);
-      background: radial-gradient(circle at 20% 0%, #e9f2ff, var(--bg) 45%);
+      background: var(--bg);
+      min-height: 100vh;
     }
     .layout {
       display: grid;
-      grid-template-columns: 220px 1fr;
+      grid-template-columns: 240px 1fr;
       min-height: 100vh;
     }
     nav {
+      background: var(--bg2);
       border-right: 1px solid var(--line);
-      padding: 24px 16px;
-      background: #f0f6ff;
+      padding: 28px 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      position: sticky;
+      top: 0;
+      height: 100vh;
     }
-    nav h1 {
-      margin: 0 0 14px;
-      font-size: 18px;
+    .nav-brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 28px;
+      padding: 0 10px;
+    }
+    .nav-brand .logo {
+      width: 32px; height: 32px;
+      background: linear-gradient(135deg, var(--accent), #a78bfa);
+      border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 800; font-size: 14px; color: #fff;
+    }
+    .nav-brand h1 {
+      font-size: 18px; font-weight: 700; letter-spacing: -0.02em;
     }
     nav a {
-      display: block;
-      padding: 8px 10px;
-      margin-bottom: 6px;
+      display: flex; align-items: center; gap: 10px;
+      padding: 10px 12px;
       text-decoration: none;
-      color: var(--text);
-      border-radius: 8px;
+      color: var(--muted);
+      border-radius: 10px;
+      font-size: 14px; font-weight: 500;
+      transition: all 0.15s ease;
     }
-    nav a:hover {
-      background: #dbe9fa;
+    nav a:hover { background: var(--card); color: var(--text); }
+    nav a.active {
+      background: var(--accent-glow);
+      color: var(--accent);
+      font-weight: 600;
     }
+    nav a .icon { font-size: 18px; width: 22px; text-align: center; }
     main {
-      padding: 22px;
+      padding: 28px 32px;
+      max-width: 1400px;
+    }
+    .page-header {
+      margin-bottom: 24px;
+    }
+    .page-header h2 {
+      font-size: 24px; font-weight: 700; letter-spacing: -0.02em;
+    }
+    .page-header p {
+      color: var(--muted); font-size: 14px; margin-top: 4px;
     }
     .card {
       background: var(--card);
       border: 1px solid var(--line);
-      border-radius: 10px;
-      padding: 16px;
-      margin-bottom: 14px;
-      box-shadow: 0 6px 20px rgba(16, 38, 63, 0.06);
+      border-radius: var(--radius);
+      padding: 20px;
+      margin-bottom: 16px;
+      transition: border-color 0.2s;
+    }
+    .card:hover { border-color: #3a3f52; }
+    .card h3 {
+      font-size: 15px; font-weight: 600; margin-bottom: 14px; color: var(--muted);
+      text-transform: uppercase; letter-spacing: 0.04em;
     }
     table {
       width: 100%;
@@ -63,47 +116,110 @@
     }
     th, td {
       text-align: left;
-      padding: 10px;
+      padding: 10px 12px;
       border-bottom: 1px solid var(--line);
-      font-size: 14px;
-    }
-    .muted {
-      color: var(--muted);
       font-size: 13px;
     }
+    th {
+      color: var(--muted);
+      font-weight: 600;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .muted { color: var(--muted); font-size: 13px; }
     .row {
       display: flex;
-      gap: 10px;
+      gap: 12px;
       flex-wrap: wrap;
     }
     .pill {
       display: inline-block;
-      padding: 4px 8px;
+      padding: 3px 10px;
       border-radius: 999px;
-      font-size: 12px;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+    }
+    .pill.high { background: var(--danger-bg); color: var(--danger); }
+    .pill.medium { background: var(--warn-bg); color: var(--warn); }
+    .pill.low { background: var(--ok-bg); color: var(--ok); }
+    .pill.info { background: var(--info-bg); color: var(--info); }
+    .stat-value {
+      font-size: 32px; font-weight: 800; letter-spacing: -0.03em;
+    }
+    .stat-label {
+      font-size: 12px; color: var(--muted); font-weight: 500;
+      text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px;
+    }
+    button, select, input {
+      font-family: inherit;
+      font-size: 13px;
+      padding: 8px 14px;
+      border-radius: 8px;
+      border: 1px solid var(--line);
+      background: var(--bg2);
+      color: var(--text);
+      cursor: pointer;
+      transition: border-color 0.15s;
+    }
+    button:hover, select:hover { border-color: var(--accent); }
+    button.primary {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #fff;
       font-weight: 600;
     }
-    .pill.high { background: #ffe3e7; color: var(--danger); }
-    .pill.info { background: #dbe9fa; color: var(--accent); }
-    .pill.low { background: #e3f7ea; color: var(--ok); }
+    button.danger {
+      background: var(--danger-bg);
+      border-color: var(--danger);
+      color: var(--danger);
+    }
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+    .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+    @media (max-width: 1100px) {
+      .grid-4 { grid-template-columns: 1fr 1fr; }
+    }
     @media (max-width: 900px) {
       .layout { grid-template-columns: 1fr; }
-      nav { border-right: 0; border-bottom: 1px solid var(--line); }
+      nav {
+        position: static; height: auto;
+        flex-direction: row; overflow-x: auto;
+        border-right: 0; border-bottom: 1px solid var(--line);
+        padding: 12px;
+      }
+      .nav-brand { margin-bottom: 0; }
+      .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr; }
     }
+    .sortable { cursor: pointer; user-select: none; }
+    .sortable:hover { color: var(--accent); }
+    .sortable::after { content: ' ↕'; font-size: 10px; opacity: 0.5; }
   </style>
 </head>
 <body>
   <div class="layout">
     <nav>
-      <h1>NIDS</h1>
-      <a href="/">Dashboard</a>
-      <a href="/alerts">Alerts</a>
-      <a href="/analytics">Analytics</a>
-      <a href="/settings">Settings</a>
+      <div class="nav-brand">
+        <div class="logo">N</div>
+        <h1>NIDS</h1>
+      </div>
+      <a href="/" id="nav-dashboard"><span class="icon">📊</span> Dashboard</a>
+      <a href="/alerts" id="nav-alerts"><span class="icon">🔔</span> Alerts</a>
+      <a href="/analytics" id="nav-analytics"><span class="icon">📈</span> Analytics</a>
+      <a href="/settings" id="nav-settings"><span class="icon">⚙️</span> Settings</a>
     </nav>
     <main>
       {% block content %}{% endblock %}
     </main>
   </div>
+  <script>
+    // Highlight active nav link
+    const path = location.pathname;
+    const navMap = {'/': 'nav-dashboard', '/alerts': 'nav-alerts', '/analytics': 'nav-analytics', '/settings': 'nav-settings'};
+    const activeId = navMap[path];
+    if (activeId) document.getElementById(activeId)?.classList.add('active');
+  </script>
 </body>
 </html>

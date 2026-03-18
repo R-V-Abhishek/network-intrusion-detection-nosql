@@ -1,39 +1,85 @@
 {% extends "base.html" %}
 {% block content %}
-<div class="card">
+<div class="page-header">
   <h2>Settings</h2>
-  <p class="muted">Session management and service status.</p>
+  <p>Session management and service health status.</p>
 </div>
 
+<!-- Current Session -->
 <div class="card">
   <h3>Current Session</h3>
-  <div id="current-session">loading...</div>
-  <div class="row" style="margin-top: 10px;">
-    <button onclick="newSession()">New Session</button>
-    <button onclick="deleteAll()">Delete All Sessions</button>
+  <div style="font-size:18px;font-weight:700;font-family:monospace;margin-bottom:14px;" id="current-session">loading...</div>
+  <div class="row">
+    <button class="primary" onclick="newSession()">New Session</button>
+    <button class="danger" onclick="deleteAll()">Delete All Sessions</button>
   </div>
 </div>
 
+<!-- Sessions List -->
 <div class="card">
   <h3>Sessions</h3>
-  <pre id="sessions"></pre>
+  <table>
+    <thead>
+      <tr>
+        <th>Session ID</th>
+        <th>Dataset</th>
+        <th>Created</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody id="sessions-table"></tbody>
+  </table>
 </div>
 
+<!-- Health -->
 <div class="card">
-  <h3>Health</h3>
-  <pre id="health"></pre>
+  <h3>Service Health</h3>
+  <table>
+    <thead><tr><th>Service</th><th>Status</th></tr></thead>
+    <tbody id="health-table"></tbody>
+  </table>
 </div>
 
 <script>
 async function refreshSettings() {
-  const cur = await (await fetch('/api/session/current')).json();
-  document.getElementById('current-session').textContent = cur.session_id;
+  try {
+    const cur = await (await fetch('/api/session/current')).json();
+    document.getElementById('current-session').textContent = cur.session_id;
 
-  const sessions = await (await fetch('/api/sessions')).json();
-  document.getElementById('sessions').textContent = JSON.stringify(sessions, null, 2);
+    const sessions = await (await fetch('/api/sessions')).json();
+    const stb = document.getElementById('sessions-table');
+    stb.innerHTML = '';
+    (sessions || []).forEach(s => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td style="font-family:monospace;font-size:13px;">${s.session_id}</td>
+        <td>${s.dataset || '—'}</td>
+        <td class="muted">${s.created_at || '—'}</td>
+        <td>
+          <button onclick="switchSession('${s.session_id}')" style="font-size:11px;padding:4px 10px;">Switch</button>
+          <button class="danger" onclick="deleteSession('${s.session_id}')" style="font-size:11px;padding:4px 10px;">Delete</button>
+        </td>
+      `;
+      stb.appendChild(tr);
+    });
 
-  const health = await (await fetch('/api/health')).json();
-  document.getElementById('health').textContent = JSON.stringify(health, null, 2);
+    const health = await (await fetch('/api/health')).json();
+    const htb = document.getElementById('health-table');
+    htb.innerHTML = '';
+    const services = health.services || {};
+    Object.entries(services).forEach(([name, status]) => {
+      const ok = status === 'connected' || status === 'ok';
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td style="font-weight:600">${name}</td>
+        <td><span class="pill ${ok ? 'low' : 'high'}">${status}</span></td>
+      `;
+      htb.appendChild(tr);
+    });
+    if (!Object.keys(services).length) {
+      htb.innerHTML = '<tr><td colspan="2" class="muted">No service data</td></tr>';
+    }
+  } catch (e) {}
 }
 
 async function newSession() {
@@ -41,7 +87,22 @@ async function newSession() {
   await refreshSettings();
 }
 
+async function switchSession(id) {
+  await fetch('/api/session/set', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ session_id: id })
+  });
+  await refreshSettings();
+}
+
+async function deleteSession(id) {
+  await fetch('/api/session/delete?session_id=' + id, { method: 'DELETE' });
+  await refreshSettings();
+}
+
 async function deleteAll() {
+  if (!confirm('Delete ALL sessions and alert data?')) return;
   await fetch('/api/sessions/delete-all', { method: 'DELETE' });
   await refreshSettings();
 }

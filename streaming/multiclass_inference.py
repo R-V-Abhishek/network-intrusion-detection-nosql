@@ -148,9 +148,6 @@ def apply_multiclass_inference(df, model, label_mapping, include_normal_rows: bo
     df = _ensure_multiclass_features(df, model)
 
     attacks_df = df.filter(F.col("binary_prediction") == 1)
-    if not include_normal_rows:
-        return predicted
-
     normal_df = df.filter(F.col("binary_prediction") != 1)
 
     predicted = model.transform(attacks_df)
@@ -167,6 +164,9 @@ def apply_multiclass_inference(df, model, label_mapping, include_normal_rows: bo
         "attack_confidence",
         F.coalesce(F.col("probability_arr")[F.col("attack_cat_id")], F.lit(0.0)).cast(DoubleType()),
     ).drop("probability_arr")
+
+    if not include_normal_rows:
+        return predicted
 
     normal_cols = [c for c in predicted.columns if c not in normal_df.columns]
     for col_name in normal_cols:

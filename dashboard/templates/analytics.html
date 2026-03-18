@@ -1,38 +1,140 @@
 {% extends "base.html" %}
 {% block content %}
-<div class="card">
+<div class="page-header">
   <h2>Analytics</h2>
-  <p class="muted">Breakdown by attack type and severity.</p>
+  <p>Attack category breakdown and timeline visualisation.</p>
 </div>
 
-<div class="row">
-  <div class="card" style="flex: 1; min-width: 300px;">
-    <h3>By Severity</h3>
-    <pre id="by-severity"></pre>
+<div class="grid-2">
+  <!-- Attack Category Bar Chart -->
+  <div class="card">
+    <h3>Alerts by Attack Type</h3>
+    <canvas id="attack-chart" height="260"></canvas>
   </div>
-  <div class="card" style="flex: 1; min-width: 300px;">
-    <h3>By Attack Type</h3>
-    <pre id="by-type"></pre>
+
+  <!-- Timeline Line Chart -->
+  <div class="card">
+    <h3>Alert Timeline</h3>
+    <canvas id="timeline-chart" height="260"></canvas>
   </div>
 </div>
 
+<!-- Top Threats Table -->
 <div class="card">
-  <h3>Timeline</h3>
-  <pre id="timeline"></pre>
+  <h3>Top Threats</h3>
+  <table>
+    <thead>
+      <tr>
+        <th style="width:40px">#</th>
+        <th>Attack Type</th>
+        <th>Count</th>
+        <th>Severity</th>
+        <th style="width:40%">Share</th>
+      </tr>
+    </thead>
+    <tbody id="threats-table"></tbody>
+  </table>
 </div>
 
 <script>
-async function refreshAnalytics() {
-  const statsRes = await fetch('/api/alerts/stats');
-  const stats = await statsRes.json();
-  document.getElementById('by-severity').textContent = JSON.stringify(stats.by_severity || {}, null, 2);
-  document.getElementById('by-type').textContent = JSON.stringify(stats.by_attack_type || {}, null, 2);
+const SEVERITY_MAP = {
+  'Normal': 'info', 'DoS': 'high', 'Exploits': 'high', 'Fuzzers': 'medium',
+  'Generic': 'medium', 'Reconnaissance': 'low', 'Shellcode': 'high',
+  'Worms': 'medium', 'Backdoors': 'high', 'Analysis': 'low'
+};
 
-  const timelineRes = await fetch('/api/alerts/timeline?hours=24&interval=60');
-  const timeline = await timelineRes.json();
-  document.getElementById('timeline').textContent = JSON.stringify(timeline, null, 2);
+const CHART_COLORS = [
+  '#f43f5e','#6366f1','#f59e0b','#10b981','#38bdf8',
+  '#a78bfa','#fb923c','#14b8a6','#e879f9','#84cc16'
+];
+
+let attackChart = null;
+let timelineChart = null;
+
+function initCharts() {
+  attackChart = new Chart(document.getElementById('attack-chart').getContext('2d'), {
+    type: 'bar',
+    data: { labels: [], datasets: [{ label: 'Count', data: [], backgroundColor: [], borderRadius: 6, borderSkipped: false }] },
+    options: {
+      responsive: true,
+      indexAxis: 'y',
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { grid: { color: '#2a2f42' }, ticks: { color: '#8892a4', font: { family: 'Inter' } } },
+        y: { grid: { display: false }, ticks: { color: '#e2e8f0', font: { family: 'Inter', weight: 500 } } }
+      }
+    }
+  });
+
+  timelineChart = new Chart(document.getElementById('timeline-chart').getContext('2d'), {
+    type: 'line',
+    data: { labels: [], datasets: [{ label: 'Alerts', data: [], borderColor: '#6366f1', backgroundColor: 'rgba(99,102,241,0.1)', fill: true, tension: 0.35, pointRadius: 3, pointHoverRadius: 6 }] },
+    options: {
+      responsive: true,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { grid: { color: '#2a2f42' }, ticks: { color: '#8892a4', maxRotation: 45, font: { family: 'Inter', size: 11 } } },
+        y: { beginAtZero: true, grid: { color: '#2a2f42' }, ticks: { color: '#8892a4', font: { family: 'Inter' } } }
+      }
+    }
+  });
 }
 
+async function refreshAnalytics() {
+  try {
+    // Attack type bar chart
+    const statsRes = await fetch('/api/alerts/stats');
+    const stats = await statsRes.json();
+    const byType = stats.by_attack_type || {};
+    const sorted = Object.entries(byType).sort((a, b) => b[1] - a[1]);
+    const total = sorted.reduce((s, e) => s + e[1], 0) || 1;
+
+    if (attackChart) {
+      attackChart.data.labels = sorted.map(e => e[0]);
+      attackChart.data.datasets[0].data = sorted.map(e => e[1]);
+      attackChart.data.datasets[0].backgroundColor = sorted.map((_, i) => CHART_COLORS[i % CHART_COLORS.length]);
+      attackChart.update('none');
+    }
+
+    // Top threats table
+    const tbody = document.getElementById('threats-table');
+    tbody.innerHTML = '';
+    sorted.forEach(([type, count], i) => {
+      const pct = ((count / total) * 100).toFixed(1);
+      const sev = SEVERITY_MAP[type] || 'info';
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td style="font-weight:700;color:var(--muted)">${i + 1}</td>
+        <td><strong>${type}</strong></td>
+        <td style="font-weight:600">${count}</td>
+        <td><span class="pill ${sev}">${sev}</span></td>
+        <td>
+          <div style="background:var(--bg);border-radius:6px;height:8px;overflow:hidden;">
+            <div style="width:${pct}%;height:100%;background:${CHART_COLORS[i % CHART_COLORS.length]};border-radius:6px;transition:width 0.5s;"></div>
+          </div>
+          <span class="muted" style="font-size:11px">${pct}%</span>
+        </td>
+      `;
+      tbody.appendChild(tr);
+    });
+
+    // Timeline line chart
+    const timelineRes = await fetch('/api/alerts/timeline?hours=24&interval=60');
+    const timeline = await timelineRes.json();
+    if (timelineChart && timeline.length) {
+      timelineChart.data.labels = timeline.map(t => {
+        const d = t.bucket || '';
+        return d.substring(11, 16) || d.substring(0, 16);
+      });
+      timelineChart.data.datasets[0].data = timeline.map(t => t.count);
+      timelineChart.update('none');
+    }
+  } catch (e) {
+    console.error('Analytics refresh error:', e);
+  }
+}
+
+initCharts();
 refreshAnalytics();
 setInterval(refreshAnalytics, 10000);
 </script>
