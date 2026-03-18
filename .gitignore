@@ -47,9 +47,19 @@ docker-compose.override.yml
 data/UNSW-NB15/*.csv
 !data/UNSW-NB15/sample.csv
 data/UNSW-NB15/*.pcap
+data\UNSW-NB15\Training and Testing Sets
 
 # Trained model artifacts (generated, not committed)
 models/
 
 # Preprocessed parquet files (generated)
 data/preprocessed/
+
+# Local tools and runs
+tools/
+tmp/
+C:\nids
+
+
+data/UNSW-NB15/Training and Testing Sets/
+*.java

@@ -13,9 +13,12 @@ Test mode: STUB_MODELS=true python -m streaming.pipeline_runner
 
 import os
 import sys
+import pickle
+import json
 from typing import Optional
 from datetime import datetime
 import time
+import numpy as np
 import pyspark
 
 # Add parent directory to path for imports
@@ -34,10 +37,13 @@ from dashboard.storage import AlertStorage, start_new_session, get_current_sessi
 # Check if we're in stub mode (no real models)
 STUB_MODELS = os.getenv("STUB_MODELS", "false").lower() == "true"
 
-if not STUB_MODELS:
-    # Import real inference modules when not in stub mode
-    from streaming.binary_inference import load_binary_model, apply_binary_inference
-    from streaming.multiclass_inference import load_multiclass_model, apply_multiclass_inference
+# sklearn models (loaded at startup)
+_binary_model = None
+_multiclass_model = None
+_scaler = None
+_label_mapping = None
+_reverse_mapping = None
+_FEATURE_NAMES = UNSW_FEATURE_CONFIG["numeric_features"]
 
 
 def _configure_windows_hadoop() -> None:
@@ -58,18 +64,50 @@ def _configure_windows_hadoop() -> None:
             os.environ["PATH"] = hadoop_bin + os.pathsep + path_value
         print(f"[Pipeline] HADOOP_HOME configured: {hadoop_home}")
 
+    # Auto-detect JDK 17 (Java 24 is incompatible with PySpark)
+    jdk17 = os.path.join(project_root, "tools", "jdk-17.0.12")
+    if os.path.isdir(jdk17):
+        os.environ["JAVA_HOME"] = jdk17
+        print(f"[Pipeline] Using JDK 17: {jdk17}")
+
 
 def _configure_java_compat() -> None:
-    """Set JVM options needed by Hadoop/Spark on newer Java runtimes."""
-    required_opt = "-Djava.security.manager=allow"
+    """Set JVM options needed by Hadoop/Spark on newer Java runtimes.
 
-    current_jdk_opts = os.environ.get("JDK_JAVA_OPTIONS", "")
-    if required_opt not in current_jdk_opts:
-        os.environ["JDK_JAVA_OPTIONS"] = (current_jdk_opts + " " + required_opt).strip()
+    Java 24+ completely removed Security Manager, so the
+    -Djava.security.manager=allow flag would crash the JVM.
+    We only add it for Java 17–23.
+    """
+    import subprocess
 
-    current_tool_opts = os.environ.get("JAVA_TOOL_OPTIONS", "")
-    if required_opt not in current_tool_opts:
-        os.environ["JAVA_TOOL_OPTIONS"] = (current_tool_opts + " " + required_opt).strip()
+    flag = "-Djava.security.manager=allow"
+
+    # Detect Java version
+    java_major = 17  # default assumption
+    try:
+        java_bin = os.path.join(os.environ.get("JAVA_HOME", ""), "bin", "java")
+        result = subprocess.run([java_bin, "-version"], capture_output=True, text=True, timeout=5)
+        version_line = result.stderr.split("\n")[0] if result.stderr else ""
+        import re
+        m = re.search(r'"(\d+)', version_line)
+        if m:
+            java_major = int(m.group(1))
+    except Exception:
+        pass
+
+    for var in ("JDK_JAVA_OPTIONS", "JAVA_TOOL_OPTIONS"):
+        cur = os.environ.get(var, "")
+        if java_major >= 24:
+            # Strip the flag — Java 24 removed Security Manager
+            cleaned = cur.replace(flag, "").strip()
+            if cleaned:
+                os.environ[var] = cleaned
+            else:
+                os.environ.pop(var, None)
+        else:
+            # Add the flag for Java 17–23
+            if flag not in cur:
+                os.environ[var] = (cur + " " + flag).strip()
 
 
 def create_spark_session() -> SparkSession:
@@ -122,19 +160,17 @@ def build_kafka_stream(spark: SparkSession, topic: str) -> DataFrame:
     Returns:
         Streaming DataFrame
     """
-    # Define schema for UNSW-NB15 network traffic
-    schema = StructType([
-        StructField(feature, DoubleType(), True)
-        for feature in UNSW_FEATURE_CONFIG["numeric_features"]
-    ] + [
-        StructField("label", IntegerType(), True),
-        StructField("attack_cat", StringType(), True),
-        StructField("src_ip", StringType(), True),
-        StructField("dst_ip", StringType(), True),
-        StructField("src_port", IntegerType(), True),
-        StructField("dst_port", IntegerType(), True),
-        StructField("proto", StringType(), True),
-    ])
+    # Define schema matching UNSW_NB15_training-set.csv columns (after dropping 'id')
+    schema = StructType(
+        [StructField("dur", DoubleType(), True),
+         StructField("proto", StringType(), True),
+         StructField("service", StringType(), True),
+         StructField("state", StringType(), True)]
+        + [StructField(f, DoubleType(), True) for f in UNSW_FEATURE_CONFIG["numeric_features"]
+           if f != "dur"]  # dur already listed above
+        + [StructField("attack_cat", StringType(), True),
+           StructField("label", IntegerType(), True)]
+    )
     
     # Read from Kafka
     reader = (
@@ -167,7 +203,7 @@ def run_pipeline(data_source: str = "unsw", session_id: Optional[str] = None):
         data_source: Data source name (default: "unsw")
         session_id: Optional session ID (creates new if None)
     """
-    global STUB_MODELS
+    global STUB_MODELS, _binary_model, _multiclass_model, _scaler, _label_mapping, _reverse_mapping
 
     print("=" * 80)
     print(f"[Pipeline] Starting NIDS Streaming Pipeline")
@@ -191,28 +227,40 @@ def run_pipeline(data_source: str = "unsw", session_id: Optional[str] = None):
     print(f"[Pipeline] Session ID: {session_id}")
     
     # Load models if not in stub mode
+
     if not STUB_MODELS:
-        print("[Pipeline] Loading models...")
+        print("[Pipeline] Loading sklearn models...")
         try:
-            binary_model, scaler = load_binary_model(MODEL_PATHS["unsw_gbt_binary"], MODEL_PATHS["unsw_nb15_scaler"])
-            multiclass_model = load_multiclass_model(
-                MODEL_PATHS["unsw_multiclass"]
-            )
-            
-            # Load label mapping
-            import json
-            with open(MODEL_PATHS["label_mapping"], "r") as f:
-                label_mapping = json.load(f)
-            
-            print("[Pipeline] Models loaded successfully")
+            project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            models_dir = os.path.join(project_root, "models")
+
+            with open(os.path.join(models_dir, "binary_model.pkl"), "rb") as f:
+                _binary_model = pickle.load(f)
+            print(f"[Pipeline] Binary model: {type(_binary_model).__name__}")
+
+            with open(os.path.join(models_dir, "multiclass_model.pkl"), "rb") as f:
+                _multiclass_model = pickle.load(f)
+            print(f"[Pipeline] Multiclass model: {type(_multiclass_model).__name__}")
+
+            with open(os.path.join(models_dir, "scaler.pkl"), "rb") as f:
+                _scaler = pickle.load(f)
+            print(f"[Pipeline] Scaler loaded")
+
+            with open(os.path.join(models_dir, "unsw_label_mapping.json"), "r") as f:
+                mapping = json.load(f)
+            _label_mapping = mapping.get("attack_mapping", {})
+            _reverse_mapping = mapping.get("reverse_mapping", {})
+            print(f"[Pipeline] Label mapping: {_label_mapping}")
+
+            print("[Pipeline] All models loaded successfully")
         except Exception as e:
             print(f"[Pipeline] ERROR loading models: {e}")
             print("[Pipeline] Falling back to STUB mode")
             STUB_MODELS = True
-    
+
     # Build streaming DataFrame
     stream_df = build_kafka_stream(spark, KAFKA_CONFIG["topic"])
-    
+
     # Batch processing function
     def safe_int(value, default=0):
         try:
@@ -231,106 +279,92 @@ def run_pipeline(data_source: str = "unsw", session_id: Optional[str] = None):
             return default
 
     def process_batch(batch_df: DataFrame, batch_id: int):
-        """
-        Process each micro-batch from Kafka stream.
-        
-        Args:
-            batch_df: DataFrame for current batch
-            batch_id: Batch identifier
-        """
+        """Process each micro-batch from Kafka stream using sklearn models."""
         if batch_df.isEmpty():
             return
 
         print(f"\n[Batch {batch_id}] Processing batch...")
-        
+
         try:
+            # Collect the Spark batch to pandas
+            pdf = batch_df.toPandas()
+            print(f"[Batch {batch_id}] Collected {len(pdf)} rows")
+
             if STUB_MODELS:
-                # STUB MODE: Generate fake predictions for testing
+                # STUB MODE: Random predictions
                 print(f"[Batch {batch_id}] Using STUB models")
-                
-                # Add stub prediction columns
-                from pyspark.sql.functions import lit, rand
-                batch_df = batch_df.withColumn("binary_prediction", 
-                                               (rand() > 0.7).cast("int"))
-                batch_df = batch_df.withColumn("binary_probability", rand())
-                batch_df = batch_df.withColumn("attack_type", lit("Stub_Attack"))
-                batch_df = batch_df.withColumn("attack_confidence", rand())
-                
+                import random
+                alert_payloads = []
+                for _, row in pdf.iterrows():
+                    if random.random() > 0.7:
+                        alert_payloads.append({
+                            "binary_prediction": 1,
+                            "binary_probability": random.random(),
+                            "attack_type": "Stub_Attack",
+                            "attack_confidence": random.random(),
+                            "severity": "medium",
+                            "src_ip": "",
+                            "dst_ip": "",
+                            "src_port": 0,
+                            "dst_port": 0,
+                            "protocol": str(row.get("proto", "")),
+                            "sbytes": safe_int(row.get("sbytes", 0)),
+                            "dbytes": safe_int(row.get("dbytes", 0)),
+                            "rate": safe_float(row.get("rate", 0.0)),
+                        })
             else:
-                # REAL MODE: Use trained models
-                print(f"[Batch {batch_id}] Applying binary inference...")
-                batch_df = apply_binary_inference(batch_df, binary_model, scaler)
+                # REAL MODE: sklearn inference
+                # Prepare features — fill NaN/inf with 0
+                X = pdf[_FEATURE_NAMES].copy() if all(c in pdf.columns for c in _FEATURE_NAMES) else pdf.reindex(columns=_FEATURE_NAMES, fill_value=0.0)
+                X = X.fillna(0).replace([np.inf, -np.inf], 0).astype(float)
+                X_scaled = _scaler.transform(X)
 
-                print(f"[Batch {batch_id}] Applying multiclass inference...")
-                batch_df = apply_multiclass_inference(
-                    batch_df,
-                    multiclass_model,
-                    label_mapping,
-                    include_normal_rows=False,
-                )
+                # Binary classification
+                binary_pred = _binary_model.predict(X_scaled)
+                binary_proba = _binary_model.predict_proba(X_scaled)[:, 1]
+                print(f"[Batch {batch_id}] Binary: {int(binary_pred.sum())} attacks / {len(binary_pred)} total")
 
-            # In real mode, multiclass output is already attack-only.
-            alerts_df = batch_df.filter(col("binary_prediction") == 1) if STUB_MODELS else batch_df
+                # Multiclass — only on predicted attacks
+                attack_indices = np.where(binary_pred == 1)[0]
+                mc_pred = np.full(len(pdf), -1, dtype=int)
+                mc_proba = np.zeros(len(pdf))
+                if len(attack_indices) > 0:
+                    X_attacks = X_scaled[attack_indices]
+                    mc_pred[attack_indices] = _multiclass_model.predict(X_attacks)
+                    mc_proba_all = _multiclass_model.predict_proba(X_attacks)
+                    mc_proba[attack_indices] = mc_proba_all.max(axis=1)
 
-            # Use a single Spark action (collect once) to avoid count+collect double jobs.
-            alert_fields = [
-                "binary_prediction",
-                "binary_probability",
-                "attack_type",
-                "attack_confidence",
-                "src_ip",
-                "dst_ip",
-                "src_port",
-                "dst_port",
-                "proto",
-                "sbytes",
-                "dbytes",
-                "rate",
-            ]
-            selected_fields = [c for c in alert_fields if c in alerts_df.columns]
-            collect_start = time.monotonic()
-            alerts = alerts_df.select(*selected_fields).collect()
-            collect_elapsed = time.monotonic() - collect_start
-            alert_count = len(alerts)
+                # Build alert payloads (attacks only)
+                alert_payloads = []
+                for idx in attack_indices:
+                    pred_id = int(mc_pred[idx])
+                    attack_type = _reverse_mapping.get(str(pred_id), "Unknown")
+                    row = pdf.iloc[idx]
+                    alert_payloads.append({
+                        "binary_prediction": 1,
+                        "binary_probability": float(binary_proba[idx]),
+                        "attack_type": attack_type,
+                        "attack_confidence": float(mc_proba[idx]),
+                        "severity": ALERT_CONFIG["severity_map"].get(attack_type, "medium"),
+                        "src_ip": "",
+                        "dst_ip": "",
+                        "src_port": 0,
+                        "dst_port": 0,
+                        "protocol": str(row.get("proto", "")),
+                        "sbytes": safe_int(row.get("sbytes", 0)),
+                        "dbytes": safe_int(row.get("dbytes", 0)),
+                        "rate": safe_float(row.get("rate", 0.0)),
+                    })
+
+            alert_count = len(alert_payloads)
 
             if alert_count > 0:
-                print(
-                    f"[Batch {batch_id}] Found {alert_count} alerts, "
-                    f"materialized in {collect_elapsed:.2f}s, storing..."
-                )
-
                 store_start = time.monotonic()
-                
-                alert_payloads = []
-                for row in alerts:
-                    # Build alert dictionary
-                    alert = {
-                        "binary_prediction": safe_int(getattr(row, "binary_prediction", 0)),
-                        "binary_probability": safe_float(getattr(row, "binary_probability", 0.0)),
-                        "attack_type": row.attack_type if hasattr(row, "attack_type") else "Unknown",
-                        "attack_confidence": safe_float(getattr(row, "attack_confidence", 0.0)),
-                        "severity": ALERT_CONFIG["severity_map"].get(
-                            row.attack_type if hasattr(row, "attack_type") else "Unknown",
-                            "medium"
-                        ),
-                        "src_ip": row.src_ip if hasattr(row, "src_ip") else "",
-                        "dst_ip": row.dst_ip if hasattr(row, "dst_ip") else "",
-                        "src_port": safe_int(getattr(row, "src_port", 0)),
-                        "dst_port": safe_int(getattr(row, "dst_port", 0)),
-                        "protocol": row.proto if hasattr(row, "proto") else "",
-                        "sbytes": safe_int(getattr(row, "sbytes", 0)),
-                        "dbytes": safe_int(getattr(row, "dbytes", 0)),
-                        "rate": safe_float(getattr(row, "rate", 0.0)),
-                    }
-
-                    alert_payloads.append(alert)
-
                 storage.store_alerts(alert_payloads, session_id)
-
                 store_elapsed = time.monotonic() - store_start
-                print(f"[Batch {batch_id}] OK Stored {alert_count} alerts in {store_elapsed:.2f}s")
+                print(f"[Batch {batch_id}] Stored {alert_count} alerts in {store_elapsed:.2f}s")
             else:
-                print(f"[Batch {batch_id}] No alerts detected (all normal traffic)")
+                print(f"[Batch {batch_id}] No alerts (all normal traffic)")
         
         except Exception as e:
             print(f"[Batch {batch_id}] ERROR: {e}")

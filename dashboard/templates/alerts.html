@@ -1,54 +1,142 @@
 {% extends "base.html" %}
 {% block content %}
-<div class="card">
+<div class="page-header">
   <h2>Alerts</h2>
-  <p class="muted">Filter and inspect alert events.</p>
-  <div class="row">
-    <label>Attack type: <input id="attack-type" placeholder="e.g. DoS"></label>
-    <label>Limit: <input id="limit" type="number" value="100" min="1" max="2000"></label>
-    <button onclick="loadAlerts()">Apply</button>
+  <p>Filter, sort, and inspect intrusion detection alert events.</p>
+</div>
+
+<!-- Filters -->
+<div class="card">
+  <div class="row" style="align-items:end;">
+    <div>
+      <label class="muted" style="display:block;margin-bottom:4px;">Attack Type</label>
+      <select id="attack-type-filter">
+        <option value="">All Types</option>
+      </select>
+    </div>
+    <div>
+      <label class="muted" style="display:block;margin-bottom:4px;">Severity</label>
+      <select id="severity-filter">
+        <option value="">All Severities</option>
+        <option value="high">High</option>
+        <option value="medium">Medium</option>
+        <option value="low">Low</option>
+        <option value="info">Info</option>
+      </select>
+    </div>
+    <div>
+      <label class="muted" style="display:block;margin-bottom:4px;">Limit</label>
+      <input id="limit" type="number" value="100" min="1" max="2000" style="width:80px;">
+    </div>
+    <button class="primary" onclick="loadAlerts()">Apply Filters</button>
   </div>
 </div>
 
+<!-- Results -->
 <div class="card">
-  <table>
-    <thead>
-      <tr>
-        <th>Time</th>
-        <th>Session</th>
-        <th>Attack Type</th>
-        <th>Severity</th>
-        <th>Probability</th>
-      </tr>
-    </thead>
-    <tbody id="alerts-table"></tbody>
-  </table>
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+    <h3 style="margin:0;">Results</h3>
+    <span class="muted" id="result-count"></span>
+  </div>
+  <div style="overflow-x:auto;">
+    <table id="alerts-table-el">
+      <thead>
+        <tr>
+          <th class="sortable" data-col="alert_time" onclick="sortBy('alert_time')">Time</th>
+          <th class="sortable" data-col="attack_type" onclick="sortBy('attack_type')">Attack Type</th>
+          <th class="sortable" data-col="severity" onclick="sortBy('severity')">Severity</th>
+          <th class="sortable" data-col="binary_probability" onclick="sortBy('binary_probability')">Probability</th>
+          <th>Source</th>
+          <th>Destination</th>
+          <th>Protocol</th>
+        </tr>
+      </thead>
+      <tbody id="alerts-table"></tbody>
+    </table>
+  </div>
 </div>
 
 <script>
+let alertData = [];
+let currentSort = { col: 'alert_time', asc: false };
+
+// Populate attack type dropdown from API
+async function loadAttackTypes() {
+  try {
+    const res = await fetch('/api/attack-types');
+    const types = await res.json();
+    const select = document.getElementById('attack-type-filter');
+    Object.values(types).filter(t => t !== 'Normal').forEach(name => {
+      const opt = document.createElement('option');
+      opt.value = name; opt.textContent = name;
+      select.appendChild(opt);
+    });
+  } catch (e) {}
+}
+
+function renderTable() {
+  const tbody = document.getElementById('alerts-table');
+  const sevFilter = document.getElementById('severity-filter').value;
+
+  let filtered = alertData;
+  if (sevFilter) filtered = filtered.filter(r => (r.severity || '').toLowerCase() === sevFilter);
+
+  // Sort
+  filtered.sort((a, b) => {
+    let va = a[currentSort.col], vb = b[currentSort.col];
+    if (currentSort.col === 'binary_probability') {
+      va = parseFloat(va) || 0; vb = parseFloat(vb) || 0;
+    } else {
+      va = String(va || '').toLowerCase(); vb = String(vb || '').toLowerCase();
+    }
+    if (va < vb) return currentSort.asc ? -1 : 1;
+    if (va > vb) return currentSort.asc ? 1 : -1;
+    return 0;
+  });
+
+  tbody.innerHTML = '';
+  filtered.forEach(row => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td style="font-family:monospace;font-size:12px;">${row.alert_time || ''}</td>
+      <td><strong>${row.attack_type || 'Unknown'}</strong></td>
+      <td><span class="pill ${row.severity || 'info'}">${row.severity || 'info'}</span></td>
+      <td style="font-weight:600">${(row.binary_probability || 0).toFixed(3)}</td>
+      <td style="font-family:monospace;font-size:12px;">${row.src_ip || '—'}:${row.src_port || ''}</td>
+      <td style="font-family:monospace;font-size:12px;">${row.dst_ip || '—'}:${row.dst_port || ''}</td>
+      <td>${row.protocol || row.proto || '—'}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+  document.getElementById('result-count').textContent = `${filtered.length} alert${filtered.length !== 1 ? 's' : ''}`;
+}
+
+function sortBy(col) {
+  if (currentSort.col === col) {
+    currentSort.asc = !currentSort.asc;
+  } else {
+    currentSort = { col, asc: true };
+  }
+  renderTable();
+}
+
 async function loadAlerts() {
-  const attackType = document.getElementById('attack-type').value.trim();
+  const attackType = document.getElementById('attack-type-filter').value;
   const limit = document.getElementById('limit').value;
   const params = new URLSearchParams({ limit });
   if (attackType) params.set('attack_type', attackType);
 
-  const res = await fetch('/api/alerts?' + params.toString());
-  const json = await res.json();
-  const tbody = document.getElementById('alerts-table');
-  tbody.innerHTML = '';
-  (json.alerts || []).forEach(row => {
-    const tr = document.createElement('tr');
-    tr.innerHTML = `
-      <td>${row.alert_time || ''}</td>
-      <td>${row.session_id || ''}</td>
-      <td>${row.attack_type || 'Unknown'}</td>
-      <td><span class="pill ${row.severity || 'info'}">${row.severity || 'info'}</span></td>
-      <td>${(row.binary_probability || 0).toFixed(3)}</td>
-    `;
-    tbody.appendChild(tr);
-  });
+  try {
+    const res = await fetch('/api/alerts?' + params.toString());
+    const json = await res.json();
+    alertData = json.alerts || [];
+    renderTable();
+  } catch (e) {
+    document.getElementById('result-count').textContent = 'Error loading alerts';
+  }
 }
 
+loadAttackTypes();
 loadAlerts();
 </script>
 {% endblock %}

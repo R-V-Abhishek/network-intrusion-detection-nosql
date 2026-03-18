@@ -36,7 +36,7 @@ from kafka.errors import NoBrokersAvailable
 REPO_ROOT = Path(__file__).resolve().parent
 DEFAULT_BOOTSTRAP = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "localhost:19092")
 DEFAULT_TOPIC = os.getenv("KAFKA_TOPIC", "network-traffic")
-DEFAULT_SAMPLE = str(REPO_ROOT / "data" / "UNSW-NB15" / "sample.csv")
+DEFAULT_SAMPLE = str(REPO_ROOT / "data" / "UNSW-NB15" / "Training and Testing Sets" / "UNSW_NB15_training-set.csv")
 DEFAULT_RATE = 10  # rows per second
 
 # Columns to drop before publishing (not needed by inference)
