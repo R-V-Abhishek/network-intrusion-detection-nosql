@@ -33,6 +33,8 @@ from config.config import (
     UNSW_ATTACK_TYPE_MAPPING, ALERT_CONFIG, MODEL_PATHS
 )
 from dashboard.storage import AlertStorage, start_new_session, get_current_session_id
+from streaming.binary_inference import load_binary_model, apply_binary_inference
+from streaming.multiclass_inference import load_multiclass_model, apply_multiclass_inference
 
 # Check if we're in stub mode (no real models)
 STUB_MODELS = os.getenv("STUB_MODELS", "false").lower() == "true"
@@ -44,6 +46,7 @@ _scaler = None
 _label_mapping = None
 _reverse_mapping = None
 _FEATURE_NAMES = UNSW_FEATURE_CONFIG["numeric_features"]
+_MODEL_BACKEND = "none"  # one of: none, sklearn, spark
 
 
 def _configure_windows_hadoop() -> None:
@@ -203,7 +206,7 @@ def run_pipeline(data_source: str = "unsw", session_id: Optional[str] = None):
         data_source: Data source name (default: "unsw")
         session_id: Optional session ID (creates new if None)
     """
-    global STUB_MODELS, _binary_model, _multiclass_model, _scaler, _label_mapping, _reverse_mapping
+    global STUB_MODELS, _binary_model, _multiclass_model, _scaler, _label_mapping, _reverse_mapping, _MODEL_BACKEND
 
     print("=" * 80)
     print(f"[Pipeline] Starting NIDS Streaming Pipeline")
@@ -229,34 +232,59 @@ def run_pipeline(data_source: str = "unsw", session_id: Optional[str] = None):
     # Load models if not in stub mode
 
     if not STUB_MODELS:
-        print("[Pipeline] Loading sklearn models...")
+        project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        models_dir = os.path.join(project_root, "models")
+
+        # First preference: sklearn pickle artifacts.
+        sklearn_binary = os.path.join(models_dir, "binary_model.pkl")
+        sklearn_multiclass = os.path.join(models_dir, "multiclass_model.pkl")
+        sklearn_scaler = os.path.join(models_dir, "scaler.pkl")
+        label_mapping_path = os.path.join(project_root, MODEL_PATHS["label_mapping"])
+
         try:
-            project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-            models_dir = os.path.join(project_root, "models")
+            if all(os.path.exists(p) for p in (sklearn_binary, sklearn_multiclass, sklearn_scaler)):
+                print("[Pipeline] Loading sklearn pickle models...")
+                with open(sklearn_binary, "rb") as f:
+                    _binary_model = pickle.load(f)
+                with open(sklearn_multiclass, "rb") as f:
+                    _multiclass_model = pickle.load(f)
+                with open(sklearn_scaler, "rb") as f:
+                    _scaler = pickle.load(f)
+                with open(label_mapping_path, "r") as f:
+                    mapping = json.load(f)
+                _label_mapping = mapping.get("attack_mapping", {})
+                _reverse_mapping = mapping.get("reverse_mapping", {})
+                _MODEL_BACKEND = "sklearn"
+                print(f"[Pipeline] Binary model: {type(_binary_model).__name__}")
+                print(f"[Pipeline] Multiclass model: {type(_multiclass_model).__name__}")
+                print("[Pipeline] Scaler loaded")
+                print("[Pipeline] Inference backend: sklearn")
+            else:
+                # Fallback: Spark ML directory models produced by notebook training.
+                spark_binary = os.path.join(project_root, MODEL_PATHS["unsw_gbt_binary"])
+                spark_multiclass = os.path.join(project_root, MODEL_PATHS["unsw_multiclass"])
+                spark_scaler = os.path.join(project_root, MODEL_PATHS["unsw_nb15_scaler"])
+                missing = [p for p in (spark_binary, spark_multiclass, spark_scaler, label_mapping_path) if not os.path.exists(p)]
+                if missing:
+                    raise FileNotFoundError(f"Missing model artifacts: {missing}")
 
-            with open(os.path.join(models_dir, "binary_model.pkl"), "rb") as f:
-                _binary_model = pickle.load(f)
-            print(f"[Pipeline] Binary model: {type(_binary_model).__name__}")
-
-            with open(os.path.join(models_dir, "multiclass_model.pkl"), "rb") as f:
-                _multiclass_model = pickle.load(f)
-            print(f"[Pipeline] Multiclass model: {type(_multiclass_model).__name__}")
-
-            with open(os.path.join(models_dir, "scaler.pkl"), "rb") as f:
-                _scaler = pickle.load(f)
-            print(f"[Pipeline] Scaler loaded")
-
-            with open(os.path.join(models_dir, "unsw_label_mapping.json"), "r") as f:
-                mapping = json.load(f)
-            _label_mapping = mapping.get("attack_mapping", {})
-            _reverse_mapping = mapping.get("reverse_mapping", {})
-            print(f"[Pipeline] Label mapping: {_label_mapping}")
+                print("[Pipeline] Loading Spark ML directory models...")
+                _binary_model, _scaler = load_binary_model(spark_binary, spark_scaler)
+                _multiclass_model = load_multiclass_model(spark_multiclass)
+                with open(label_mapping_path, "r") as f:
+                    mapping = json.load(f)
+                _label_mapping = mapping
+                _reverse_mapping = mapping.get("reverse_mapping", {})
+                _MODEL_BACKEND = "spark"
+                print("[Pipeline] Spark models loaded")
+                print("[Pipeline] Inference backend: spark")
 
             print("[Pipeline] All models loaded successfully")
         except Exception as e:
             print(f"[Pipeline] ERROR loading models: {e}")
             print("[Pipeline] Falling back to STUB mode")
             STUB_MODELS = True
+            _MODEL_BACKEND = "none"
 
     # Build streaming DataFrame
     stream_df = build_kafka_stream(spark, KAFKA_CONFIG["topic"])
@@ -279,18 +307,18 @@ def run_pipeline(data_source: str = "unsw", session_id: Optional[str] = None):
             return default
 
     def process_batch(batch_df: DataFrame, batch_id: int):
-        """Process each micro-batch from Kafka stream using sklearn models."""
+        """Process each micro-batch from Kafka stream using active inference backend."""
         if batch_df.isEmpty():
             return
 
         print(f"\n[Batch {batch_id}] Processing batch...")
 
         try:
-            # Collect the Spark batch to pandas
-            pdf = batch_df.toPandas()
-            print(f"[Batch {batch_id}] Collected {len(pdf)} rows")
-
             if STUB_MODELS:
+                # Collect rows only for stub data generation.
+                pdf = batch_df.toPandas()
+                print(f"[Batch {batch_id}] Collected {len(pdf)} rows")
+
                 # STUB MODE: Random predictions
                 print(f"[Batch {batch_id}] Using STUB models")
                 import random
@@ -312,8 +340,53 @@ def run_pipeline(data_source: str = "unsw", session_id: Optional[str] = None):
                             "dbytes": safe_int(row.get("dbytes", 0)),
                             "rate": safe_float(row.get("rate", 0.0)),
                         })
+            elif _MODEL_BACKEND == "spark":
+                # REAL MODE: Spark model inference using saved Spark ML directories.
+                predicted_binary = apply_binary_inference(batch_df, _binary_model, _scaler)
+                predicted_attacks = apply_multiclass_inference(
+                    predicted_binary,
+                    _multiclass_model,
+                    _label_mapping,
+                    include_normal_rows=False,
+                )
+
+                rows = predicted_attacks.select(
+                    "binary_prediction",
+                    "binary_probability",
+                    "attack_type",
+                    "attack_confidence",
+                    "proto",
+                    "sbytes",
+                    "dbytes",
+                    "rate",
+                ).collect()
+                print(f"[Batch {batch_id}] Spark backend: {len(rows)} attacks")
+
+                alert_payloads = []
+                for row in rows:
+                    attack_type = str(row["attack_type"] or "Unknown")
+                    alert_payloads.append({
+                        "binary_prediction": safe_int(row["binary_prediction"], 1),
+                        "binary_probability": safe_float(row["binary_probability"], 0.0),
+                        "attack_type": attack_type,
+                        "attack_confidence": safe_float(row["attack_confidence"], 0.0),
+                        "severity": ALERT_CONFIG["severity_map"].get(attack_type, "medium"),
+                        "src_ip": "",
+                        "dst_ip": "",
+                        "src_port": 0,
+                        "dst_port": 0,
+                        "protocol": str(row["proto"] or ""),
+                        "sbytes": safe_int(row["sbytes"], 0),
+                        "dbytes": safe_int(row["dbytes"], 0),
+                        "rate": safe_float(row["rate"], 0.0),
+                    })
+
             else:
                 # REAL MODE: sklearn inference
+                # Collect the Spark batch to pandas
+                pdf = batch_df.toPandas()
+                print(f"[Batch {batch_id}] Collected {len(pdf)} rows")
+
                 # Prepare features — fill NaN/inf with 0
                 X = pdf[_FEATURE_NAMES].copy() if all(c in pdf.columns for c in _FEATURE_NAMES) else pdf.reindex(columns=_FEATURE_NAMES, fill_value=0.0)
                 X = X.fillna(0).replace([np.inf, -np.inf], 0).astype(float)
