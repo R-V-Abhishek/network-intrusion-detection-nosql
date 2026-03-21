@@ -36,7 +36,13 @@ from kafka.errors import NoBrokersAvailable
 REPO_ROOT = Path(__file__).resolve().parent
 DEFAULT_BOOTSTRAP = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "localhost:19092")
 DEFAULT_TOPIC = os.getenv("KAFKA_TOPIC", "network-traffic")
-DEFAULT_SAMPLE = str(REPO_ROOT / "data" / "UNSW-NB15" / "Training and Testing Sets" / "UNSW_NB15_training-set.csv")
+DEFAULT_DATA_DIR = REPO_ROOT / "data" / "UNSW-NB15"
+DEFAULT_FILES = [
+    str(DEFAULT_DATA_DIR / "UNSW-NB15_1.csv"),
+    str(DEFAULT_DATA_DIR / "UNSW-NB15_2.csv"),
+    str(DEFAULT_DATA_DIR / "UNSW-NB15_3.csv"),
+    str(DEFAULT_DATA_DIR / "UNSW-NB15_4.csv"),
+]
 DEFAULT_RATE = 10  # rows per second
 
 # Columns to drop before publishing (not needed by inference)
@@ -91,8 +97,8 @@ def publish(
     df: pd.DataFrame,
     topic: str,
     rate: float,
-    loop: bool = False,
-) -> None:
+    start_count: int = 0
+) -> int:
     """
     Publish rows from df to the Kafka topic at the given rate (rows/sec).
 
@@ -105,45 +111,33 @@ def publish(
         Kafka topic name.
     rate : float
         Rows per second to publish. Use 0 for maximum throughput.
-    loop : bool
-        If True, cycle through df indefinitely until Ctrl+C.
+    start_count : int
+        The starting total_sent count for keeping track across files.
     """
     delay = 1.0 / rate if rate > 0 else 0
-
-    total_sent = 0
-    iteration = 0
+    total_sent = start_count
 
     try:
-        while True:
-            iteration += 1
-            if loop or iteration == 1:
-                if iteration > 1:
-                    print(f"\n[Producer] Looping — iteration {iteration}")
-            else:
-                pass  # single pass, break at end
+        for _, row in df.iterrows():
+            record = row.to_dict()
+            producer.send(topic, value=record)
+            total_sent += 1
 
-            for _, row in df.iterrows():
-                record = row.to_dict()
-                producer.send(topic, value=record)
-                total_sent += 1
+            if delay:
+                time.sleep(delay)
 
-                if delay:
-                    time.sleep(delay)
+            if total_sent % 50 == 0:
+                print(f"[Producer] Sent {total_sent} messages...", end="\r")
 
-                if total_sent % 50 == 0:
-                    print(f"[Producer] Sent {total_sent} messages...", end="\r")
-
-            producer.flush()
-            print(f"[Producer] OK Flushed batch -- total sent: {total_sent}")
-
-            if not loop:
-                break
+        producer.flush()
+        print(f"[Producer] OK Flushed batch -- total sent so far: {total_sent}")
 
     except KeyboardInterrupt:
         producer.flush()
         print(f"\n[Producer] Interrupted — total sent: {total_sent}")
+        raise
 
-    print(f"[Producer] Done. Total messages sent: {total_sent}")
+    return total_sent
 
 
 # ---------------------------------------------------------------------------
@@ -162,10 +156,11 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--file",
+        nargs="+",
         default=None,
         help=(
-            "Path to a specific CSV file to stream. "
-            f"Defaults to data/UNSW-NB15/sample.csv"
+            "Paths to specific CSV file(s) to stream. "
+            f"Defaults to: {', '.join([Path(f).name for f in DEFAULT_FILES])}"
         ),
     )
     parser.add_argument(
@@ -195,26 +190,47 @@ def parse_args() -> argparse.Namespace:
 def main():
     args = parse_args()
 
-    # Resolve file path
-    csv_path = args.file if args.file else DEFAULT_SAMPLE
-    if not Path(csv_path).exists():
-        print(f"[Producer] ERROR: File not found: {csv_path}")
-        sys.exit(1)
+    # Resolve file paths
+    csv_paths = args.file if args.file else DEFAULT_FILES
+    for csv_path in csv_paths:
+        if not Path(csv_path).exists():
+            print(f"[Producer] ERROR: File not found: {csv_path}")
+            sys.exit(1)
 
     print("=" * 60)
     print("[Producer] NIDS Kafka Producer")
     print(f"  Topic:    {args.topic}")
     print(f"  Brokers:  {args.bootstrap_servers}")
-    print(f"  File:     {csv_path}")
+    print(f"  Files:    {', '.join([Path(p).name for p in csv_paths])}")
     print(f"  Rate:     {args.rate} rows/sec" if args.rate > 0 else "  Rate:     max throughput")
     print(f"  Loop:     {args.loop}")
     print("=" * 60)
 
-    df = load_csv(csv_path)
     producer = build_producer(args.bootstrap_servers)
 
-    publish(producer, df, topic=args.topic, rate=args.rate, loop=args.loop)
+    total_sent = 0
+    iteration = 0
 
+    try:
+        while True:
+            iteration += 1
+            if args.loop or iteration == 1:
+                if iteration > 1:
+                    print(f"\n[Producer] Looping files — iteration {iteration}")
+            else:
+                break
+                
+            for csv_path in csv_paths:
+                df = load_csv(csv_path)
+                total_sent = publish(producer, df, topic=args.topic, rate=args.rate, start_count=total_sent)
+
+            if not args.loop:
+                break
+
+    except KeyboardInterrupt:
+        print("\n[Producer] Interrupted.")
+
+    print(f"\n[Producer] Done. Total messages sent: {total_sent}")
     producer.close()
 
 

@@ -37,7 +37,7 @@ A **real-time network intrusion detection system** built with Apache Spark Struc
 | | **Apache Cassandra** | **Redis** |
 |---|---|---|
 | **Role** | Durable, persistent storage | Fast in-memory cache & pub/sub |
-| **Stores** | All alerts permanently (partitioned by session, clustered by time DESC) | Recent alerts list, session metadata, real-time pub/sub channel |
+| **Stores** | All alerts permanently (partitioned by session, clustered by time DESC) | Recent alerts list, session metadata, real-time pub/sub channel a|
 | **Why we need it** | Survives restarts, handles millions of alerts, supports time-range queries | Dashboard needs sub-millisecond reads for live feed, avoids hammering Cassandra on every page refresh |
 | **Query pattern** | `SELECT * FROM alerts WHERE session_id = ? ORDER BY alert_time DESC` | `LRANGE nids:alerts:<session> 0 99` |
 | **Data model** | Wide-column (partition key: session_id, clustering: alert_time DESC) | Key-value lists + hashes |
@@ -202,25 +202,35 @@ pytest tests/ -v
 
 ## How to Run the Full Pipeline (Manual Steps)
 
-You need **3 terminal windows** (all with venv activated):
+You need **multiple terminal windows** (ensure your virtual environment is activated in each):
 
-### Terminal 1 — Start the Dashboard
+### 1. Start Infrastructure Services
+
+Before running the application, start Cassandra, Redis, and Kafka:
+
+```bash
+# Using the run script (includes wait loops)
+bash run.sh
+
+# OR using docker compose directly
+docker compose up -d
+```
+
+### 2. Start the Dashboard (Terminal 1)
 
 ```bash
 .\venv\Scripts\Activate.ps1
 python -m dashboard.app
 ```
-
 Open **http://localhost:5000** in your browser.
 
-### Terminal 2 — Start the Streaming Pipeline
+### 3. Start the Streaming Pipeline (Terminal 2)
 
 ```bash
 .\venv\Scripts\Activate.ps1
 python -m streaming.pipeline_runner
 ```
-
-This connects to Kafka and waits for incoming data. It loads the trained GBT (binary) and RF (multiclass) models automatically.
+This connects to Kafka, loads the trained GBT (binary) and RF (multiclass) models automatically, and waits for incoming data.
 
 **What happens inside the pipeline:**
 1. Reads JSON messages from Kafka topic `network-traffic`
@@ -229,22 +239,22 @@ This connects to Kafka and waits for incoming data. It loads the trained GBT (bi
 4. Stores detected attacks in **Cassandra** (durable) + **Redis** (fast cache)
 5. The dashboard reads from Redis for live updates
 
-### Terminal 3 — Start the Kafka Producer
+### 4. Start the Kafka Producer (Terminal 3)
 
 ```bash
 .\venv\Scripts\Activate.ps1
 
-# Stream sample.csv at 10 rows/sec (good for demo)
+# Stream the default datasets sequentially (UNSW-NB15_1.csv through 4.csv)
 python kafka_producer.py --data-source unsw
 
-# Stream at higher throughput
+# Limit the rate (e.g., 500 rows per second)
 python kafka_producer.py --data-source unsw --rate 500
 
-# Stream a specific file
-python kafka_producer.py --data-source unsw --file data/UNSW-NB15/UNSW_NB15_training-set.csv --rate 100
-
-# Loop continuously
+# Loop continuously indefinitely
 python kafka_producer.py --data-source unsw --loop
+
+# Stream a specific file
+python kafka_producer.py --data-source unsw --file data/UNSW-NB15/UNSW_NB15_training-set.csv
 ```
 
 ### Stub Mode (No Trained Models)
