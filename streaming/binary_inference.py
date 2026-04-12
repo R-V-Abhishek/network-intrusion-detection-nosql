@@ -153,7 +153,6 @@ def apply_binary_inference(
 # Standalone smoke-test
 # ---------------------------------------------------------------------------
 if __name__ == "__main__":
-    import os
     import sys
     from pathlib import Path
 

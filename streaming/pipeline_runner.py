@@ -12,25 +12,25 @@ Test mode: STUB_MODELS=true python -m streaming.pipeline_runner
 """
 
 import os
-import sys
 import pickle
 import json
-from typing import Optional
-from datetime import datetime
 import time
+from typing import Optional
+
 import numpy as np
 import pyspark
 
-# Add parent directory to path for imports
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
 from pyspark.sql import SparkSession, DataFrame
-from pyspark.sql.functions import col, from_json, struct, to_json
+from pyspark.sql.functions import col, from_json
 from pyspark.sql.types import StructType, StructField, StringType, IntegerType, DoubleType
 
 from config.config import (
-    KAFKA_CONFIG, SPARK_CONFIG, STREAMING_CONFIG, UNSW_FEATURE_CONFIG,
-    UNSW_ATTACK_TYPE_MAPPING, ALERT_CONFIG, MODEL_PATHS
+    ALERT_CONFIG,
+    KAFKA_CONFIG,
+    MODEL_PATHS,
+    SPARK_CONFIG,
+    STREAMING_CONFIG,
+    UNSW_FEATURE_CONFIG,
 )
 from dashboard.storage import AlertStorage, start_new_session, get_current_session_id
 from streaming.binary_inference import load_binary_model, apply_binary_inference
@@ -116,7 +116,7 @@ def _configure_java_compat() -> None:
 def create_spark_session() -> SparkSession:
     """
     Create and configure Spark session for streaming.
-    
+
     Returns:
         Configured SparkSession
     """
@@ -145,21 +145,21 @@ def create_spark_session() -> SparkSession:
         .config("spark.sql.adaptive.enabled", "false")
         .getOrCreate()
     )
-    
+
     spark.sparkContext.setLogLevel(SPARK_CONFIG["log_level"])
     print(f"[Pipeline] Spark session created: {SPARK_CONFIG['app_name']}")
-    
+
     return spark
 
 
 def build_kafka_stream(spark: SparkSession, topic: str) -> DataFrame:
     """
     Build Kafka streaming DataFrame.
-    
+
     Args:
         spark: SparkSession
         topic: Kafka topic to consume from
-        
+
     Returns:
         Streaming DataFrame
     """
@@ -174,7 +174,7 @@ def build_kafka_stream(spark: SparkSession, topic: str) -> DataFrame:
         + [StructField("attack_cat", StringType(), True),
            StructField("label", IntegerType(), True)]
     )
-    
+
     # Read from Kafka
     reader = (
         spark.readStream
@@ -189,11 +189,11 @@ def build_kafka_stream(spark: SparkSession, topic: str) -> DataFrame:
         reader = reader.option("maxOffsetsPerTrigger", str(max_offsets))
 
     df = reader.load()
-    
+
     # Parse JSON value
     df = df.selectExpr("CAST(value AS STRING) as json_str")
     df = df.select(from_json(col("json_str"), schema).alias("data")).select("data.*")
-    
+
     print(f"[Pipeline] Kafka stream connected to topic: {topic}")
     return df
 
@@ -201,19 +201,20 @@ def build_kafka_stream(spark: SparkSession, topic: str) -> DataFrame:
 def run_pipeline(data_source: str = "unsw", session_id: Optional[str] = None):
     """
     Run the full streaming pipeline.
-    
+
     Args:
         data_source: Data source name (default: "unsw")
         session_id: Optional session ID (creates new if None)
     """
-    global STUB_MODELS, _binary_model, _multiclass_model, _scaler, _label_mapping, _reverse_mapping, _MODEL_BACKEND
+    global STUB_MODELS, _binary_model, _multiclass_model, _scaler
+    global _label_mapping, _reverse_mapping, _MODEL_BACKEND
 
     print("=" * 80)
-    print(f"[Pipeline] Starting NIDS Streaming Pipeline")
+    print("[Pipeline] Starting NIDS Streaming Pipeline")
     print(f"[Pipeline] Data source: {data_source}")
     print(f"[Pipeline] Stub models: {STUB_MODELS}")
     print("=" * 80)
-    
+
     # Initialize Spark
     spark = create_spark_session()
 
@@ -226,9 +227,9 @@ def run_pipeline(data_source: str = "unsw", session_id: Optional[str] = None):
         session_id = get_current_session_id()
         if session_id is None:
             session_id = start_new_session()
-    
+
     print(f"[Pipeline] Session ID: {session_id}")
-    
+
     # Load models if not in stub mode
 
     if not STUB_MODELS:
@@ -264,7 +265,11 @@ def run_pipeline(data_source: str = "unsw", session_id: Optional[str] = None):
                 spark_binary = os.path.join(project_root, MODEL_PATHS["unsw_gbt_binary"])
                 spark_multiclass = os.path.join(project_root, MODEL_PATHS["unsw_multiclass"])
                 spark_scaler = os.path.join(project_root, MODEL_PATHS["unsw_nb15_scaler"])
-                missing = [p for p in (spark_binary, spark_multiclass, spark_scaler, label_mapping_path) if not os.path.exists(p)]
+                missing = [
+                    p
+                    for p in (spark_binary, spark_multiclass, spark_scaler, label_mapping_path)
+                    if not os.path.exists(p)
+                ]
                 if missing:
                     raise FileNotFoundError(f"Missing model artifacts: {missing}")
 
@@ -388,14 +393,20 @@ def run_pipeline(data_source: str = "unsw", session_id: Optional[str] = None):
                 print(f"[Batch {batch_id}] Collected {len(pdf)} rows")
 
                 # Prepare features — fill NaN/inf with 0
-                X = pdf[_FEATURE_NAMES].copy() if all(c in pdf.columns for c in _FEATURE_NAMES) else pdf.reindex(columns=_FEATURE_NAMES, fill_value=0.0)
+                if all(c in pdf.columns for c in _FEATURE_NAMES):
+                    X = pdf[_FEATURE_NAMES].copy()
+                else:
+                    X = pdf.reindex(columns=_FEATURE_NAMES, fill_value=0.0)
                 X = X.fillna(0).replace([np.inf, -np.inf], 0).astype(float)
                 X_scaled = _scaler.transform(X)
 
                 # Binary classification
                 binary_pred = _binary_model.predict(X_scaled)
                 binary_proba = _binary_model.predict_proba(X_scaled)[:, 1]
-                print(f"[Batch {batch_id}] Binary: {int(binary_pred.sum())} attacks / {len(binary_pred)} total")
+                print(
+                    f"[Batch {batch_id}] Binary: {int(binary_pred.sum())} "
+                    f"attacks / {len(binary_pred)} total"
+                )
 
                 # Multiclass — only on predicted attacks
                 attack_indices = np.where(binary_pred == 1)[0]
@@ -438,16 +449,16 @@ def run_pipeline(data_source: str = "unsw", session_id: Optional[str] = None):
                 print(f"[Batch {batch_id}] Stored {alert_count} alerts in {store_elapsed:.2f}s")
             else:
                 print(f"[Batch {batch_id}] No alerts (all normal traffic)")
-        
+
         except Exception as e:
             print(f"[Batch {batch_id}] ERROR: {e}")
             import traceback
             traceback.print_exc()
-    
+
     # Start streaming query
     print("\n[Pipeline] Starting streaming query...")
     print("[Pipeline] Press Ctrl+C to stop\n")
-    
+
     trigger_interval = STREAMING_CONFIG.get("trigger_interval", "30 seconds")
     print(f"[Pipeline] Trigger interval: {trigger_interval}")
 
@@ -458,7 +469,7 @@ def run_pipeline(data_source: str = "unsw", session_id: Optional[str] = None):
         .trigger(processingTime=trigger_interval)
         .start()
     )
-    
+
     try:
         query.awaitTermination()
     except KeyboardInterrupt:
@@ -482,7 +493,7 @@ def run_pipeline(data_source: str = "unsw", session_id: Optional[str] = None):
 if __name__ == "__main__":
     """
     Main entry point for pipeline runner.
-    
+
     Usage:
         python -m streaming.pipeline_runner
         STUB_MODELS=true python -m streaming.pipeline_runner

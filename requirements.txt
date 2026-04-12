@@ -11,4 +11,5 @@ jupyterlab
 
 # ── Dev / CI ────────────────────────────────────────────────────────────────
 pytest>=8.0.0          # test runner — used by Jenkins in the Test stage
+pytest-cov>=5.0.0      # coverage plugin for pytest --cov
 flake8>=7.0.0          # linter — used by Jenkins in the Lint stage

@@ -519,7 +519,11 @@ class AlertStorage:
 
         if self._using_redis():
             try:
-                session_ids = [s.get("session_id") for s in self.get_sessions(limit=100000) if s.get("session_id")]
+                session_ids = [
+                    s.get("session_id")
+                    for s in self.get_sessions(limit=100000)
+                    if s.get("session_id")
+                ]
                 for sid in session_ids:
                     removed_alerts += int(self._redis.llen(self._alerts_key(sid)))
                     self._redis.delete(self._alerts_key(sid))
