@@ -1,0 +1,52 @@
+# Build tools / cache
+venv/
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.coverage
+htmlcov/
+coverage.xml
+test-results.xml
+
+# Git
+.git/
+.gitignore
+
+# Logs
+*.log
+logs/
+
+# Env / secrets
+.env
+.env.*
+
+# Large data files (download separately)
+data/UNSW-NB15/*.csv
+data/UNSW-NB15/*.pcap
+data/preprocessed/
+data/UNSW-NB15/Training and Testing Sets/
+
+# Notebooks
+*.ipynb
+notebooks/
+
+# Docs / CI files (not needed in image)
+*.md
+Jenkinsfile
+Makefile
+jenkins-cli.jar
+docker-compose*.yml
+scripts/
+memory/
+tools/
+tmp/
+
+# Models (generated at runtime)
+models/
+
+# IDE
+.vscode/
+.idea/

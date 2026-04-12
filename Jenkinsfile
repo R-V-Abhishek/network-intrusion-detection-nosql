@@ -54,8 +54,8 @@ pipeline {
                     python3 -m venv venv
 
                     echo "=== Installing dependencies ==="
-                    venv/bin/pip install --upgrade pip
-                    venv/bin/pip install -r requirements.txt
+                    venv/bin/pip install --upgrade pip --quiet
+                    venv/bin/pip install -r requirements.txt --quiet
                 '''
             }
         }
