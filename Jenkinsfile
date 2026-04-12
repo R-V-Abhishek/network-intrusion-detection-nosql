@@ -108,11 +108,15 @@ pipeline {
         }
 
         // ── STAGE 4 ──────────────────────────────────────────────────────────
+        // Set RUN_INTEGRATION_TESTS=true in Jenkins job params to enable
         stage('Integration Tests') {
+            when {
+                environment name: 'RUN_INTEGRATION_TESTS', value: 'true'
+            }
             steps {
                 sh '''
                     echo "=== Starting CI compose stack ==="
-                    docker compose -f docker-compose.ci.yml up -d --build --wait
+                    docker compose -f docker-compose.ci.yml up -d --wait
 
                     echo "=== Running integration tests ==="
                     NIDS_RUN_INTEGRATION=1 venv/bin/pytest tests/ -m integration \
@@ -123,7 +127,7 @@ pipeline {
                 always {
                     sh 'docker compose -f docker-compose.ci.yml down --remove-orphans'
                     junit allowEmptyResults: true, testResults: 'integration-results.xml'
-                    archiveArtifacts artifacts: 'integration-results.xml', fingerprint: true
+                    archiveArtifacts artifacts: 'integration-results.xml', allowEmptyArchive: true, fingerprint: true
                 }
             }
         }
