@@ -61,6 +61,32 @@ A **real-time network intrusion detection system** built with Apache Spark Struc
 
 ---
 
+## 🛠️ DevOps Showcase
+
+This project is built with a production-grade DevOps mindset:
+
+### 🔄 CI/CD Pipelines
+- **Jenkins (Primary)**: A 7-stage declarative pipeline (`Jenkinsfile`) featuring:
+  - **Parallel Execution**: Linting and Unit Testing run in parallel for speed.
+  - **Integration Testing**: Automated spin-up of a CI-specific Docker stack for smoke tests.
+  - **Quality Gates**: JUnit XML reporting and Cobertura coverage tracking.
+  - **Docker Lifecycle**: Automated build, tag, and push to DockerHub.
+  - **Auto-Cleanup**: Intelligent pruning of build images and workspace to minimize disk usage.
+- **GitHub Actions (Fallback)**: Native CI workflow (`.github/workflows/ci.yml`) for instant feedback on PRs.
+
+### 🐳 Docker & Containerization
+- **Optimized Build**: Uses `.dockerignore` to reduce context from **1.18GB to <10MB**.
+- **Multi-Stage Mindset**: Python/Pip caching and explicit file copying for fast, layered rebuilds.
+- **Resource Management**: Strict CPU/Memory limits in `docker-compose.yml` to prevent resource exhaustion.
+- **Healthchecks**: Built-in container readiness checks for resilient service orchestration.
+
+### 📜 Developer Experience (DX)
+- **Makefile**: One-word commands for everything: `make test`, `make run`, `make clean`.
+- **Health APIs**: Dedicated `/api/health` endpoint for monitoring infrastructure status.
+- **Documentation**: Detailed `DATASTORE_QUERIES.md` explaining NoSQL schema decisions.
+
+---
+
 ## Project Structure
 
 ```

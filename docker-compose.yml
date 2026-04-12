@@ -19,6 +19,11 @@ services:
       - ./src:/app/src
     networks:
       - nids_net
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:5000/api/health"]
       interval: 10s
@@ -35,6 +40,11 @@ services:
       - "6379:6379"
     networks:
       - nids_net
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -54,6 +64,11 @@ services:
       - cassandra_data:/var/lib/cassandra
     networks:
       - nids_net
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
     healthcheck:
       test: ["CMD", "cqlsh", "-e", "describe keyspaces"]
       interval: 15s
@@ -82,6 +97,11 @@ services:
       CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk
     networks:
       - nids_net
+    deploy:
+      resources:
+        limits:
+          cpus: '1.5'
+          memory: 1.5G
     healthcheck:
       test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:9092"]
       interval: 10s
