@@ -212,8 +212,9 @@ pipeline {
             echo "BUILD SUCCEEDED"
         }
         cleanup {
-            // Remove the venv folder after the build to keep the workspace clean
             sh 'rm -rf venv'
+            sh 'docker image rm ${IMAGE_NAME}:${IMAGE_TAG} ${IMAGE_NAME}:latest 2>/dev/null || true'
+            sh 'docker builder prune -f 2>/dev/null || true'
         }
     }
 }
