@@ -27,6 +27,9 @@ pipeline {
         IMAGE_NAME = "nids-app"
         IMAGE_TAG  = "${BUILD_NUMBER}"   // each build gets a unique tag e.g. nids-app:42
 
+        // Jenkins credentials id for Docker registry login
+        DOCKER_CREDENTIALS_ID = "dockerhub-credentials"
+
         // Set this so tests don't try to connect to real Spark/Kafka/Cassandra
         STUB_MODELS = "true"
     }
@@ -58,46 +61,69 @@ pipeline {
         }
 
         // ── STAGE 3 ──────────────────────────────────────────────────────────
-        stage('Lint') {
-            steps {
-                sh '''
-                    echo "=== Running flake8 linter ==="
-                    venv/bin/flake8 config/ src/ streaming/ dashboard/ tests/ \
-                        --max-line-length=110 \
-                        --exclude=venv \
-                        --count
-                '''
-            }
-            // If lint fails, mark the build as UNSTABLE (warning) not FAILED
-            // Remove this block if you want lint failures to stop the pipeline
-            post {
-                failure {
-                    echo "Lint issues found — fix them before merging!"
+        stage('Quality') {
+            parallel {
+                stage('Lint') {
+                    steps {
+                        sh '''
+                            echo "=== Running flake8 linter ==="
+                            venv/bin/flake8 config/ src/ streaming/ dashboard/ tests/ \
+                                --max-line-length=110 \
+                                --exclude=venv \
+                                --count
+                        '''
+                    }
+                    post {
+                        failure {
+                            echo "Lint issues found — fix them before merging!"
+                        }
+                    }
+                }
+
+                stage('Unit Tests + Coverage') {
+                    steps {
+                        sh '''
+                            echo "=== Running unit tests with coverage ==="
+                            venv/bin/pytest tests/ \
+                                --junitxml=test-results.xml \
+                                --cov=. \
+                                --cov-report=xml
+                        '''
+                    }
+                    post {
+                        always {
+                            junit 'test-results.xml'
+                            cobertura coberturaReportFile: 'coverage.xml'
+                            archiveArtifacts artifacts: 'test-results.xml,coverage.xml', fingerprint: true
+                        }
+                        failure {
+                            echo "Tests FAILED — this code will NOT be deployed."
+                        }
+                        success {
+                            echo "All unit tests passed!"
+                        }
+                    }
                 }
             }
         }
 
         // ── STAGE 4 ──────────────────────────────────────────────────────────
-        stage('Test') {
+        stage('Integration Tests') {
             steps {
                 sh '''
-                    echo "=== Running pytest ==="
-                    venv/bin/pytest tests/ \
-                        --verbose \
-                        --tb=short \
-                        --junitxml=test-results.xml
+                    echo "=== Starting CI compose stack ==="
+                    docker compose -f docker-compose.ci.yml up -d --build --wait
+
+                    echo "=== Running integration tests ==="
+                    NIDS_RUN_INTEGRATION=1 venv/bin/pytest tests/ -m integration \
+                        --junitxml=integration-results.xml
                 '''
             }
-            // Always publish test results so Jenkins shows pass/fail counts
             post {
                 always {
-                    junit 'test-results.xml'
-                }
-                failure {
-                    echo "Tests FAILED — this code will NOT be deployed."
-                }
-                success {
-                    echo "All tests passed!"
+                    sh 'docker compose -f docker-compose.ci.yml down --remove-orphans'
+                    junit allowEmptyResults: true, testResults: 'integration-results.xml'
+                    archiveArtifacts artifacts: 'integration-results.xml', fingerprint: true
                 }
             }
         }
@@ -114,8 +140,36 @@ pipeline {
         }
 
         // ── STAGE 6 ──────────────────────────────────────────────────────────
-        // Only deploy when code is merged to 'main'
-        // Feature branches just run stages 1-5 to verify they're safe to merge
+        stage('Push Docker Image') {
+            steps {
+                withCredentials([usernamePassword(
+                    credentialsId: "${DOCKER_CREDENTIALS_ID}",
+                    usernameVariable: 'DOCKER_USER',
+                    passwordVariable: 'DOCKER_PASS'
+                )]) {
+                    sh '''
+                        echo "=== Logging in to Docker registry ==="
+                        echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
+
+                        echo "=== Pushing ${DOCKER_USER}/${IMAGE_NAME}:${IMAGE_TAG} ==="
+                        docker tag ${IMAGE_NAME}:${IMAGE_TAG} ${DOCKER_USER}/${IMAGE_NAME}:${IMAGE_TAG}
+                        docker push ${DOCKER_USER}/${IMAGE_NAME}:${IMAGE_TAG}
+
+                        if [ "${GIT_BRANCH}" = "origin/master" ]; then
+                            echo "=== Pushing ${DOCKER_USER}/${IMAGE_NAME}:latest ==="
+                            docker tag ${IMAGE_NAME}:${IMAGE_TAG} ${DOCKER_USER}/${IMAGE_NAME}:latest
+                            docker push ${DOCKER_USER}/${IMAGE_NAME}:latest
+                        fi
+
+                        docker logout
+                    '''
+                }
+            }
+        }
+
+        // ── STAGE 7 ──────────────────────────────────────────────────────────
+        // Only deploy when code is merged to 'master'
+        // Feature branches just run stages 1-6 to verify they're safe to merge
         stage('Deploy') {
             when {
                 expression { env.GIT_BRANCH == 'origin/master' }
@@ -123,13 +177,10 @@ pipeline {
             steps {
                 sh '''
                     echo "=== Deploying full stack with docker compose ==="
-                    docker compose -f docker-compose.yml up -d --build
-
-                    echo "=== Waiting for services to be healthy ==="
-                    sleep 20
+                    docker compose -f docker-compose.yml up -d --build --wait
 
                     echo "=== Stack is up ==="
-                    docker compose ps
+                    docker compose -f docker-compose.yml ps
                 '''
             }
             post {
@@ -137,7 +188,7 @@ pipeline {
                     echo "Deployment successful! Dashboard: http://localhost:5000"
                 }
                 failure {
-                    sh 'docker compose logs --tail=50'
+                    sh 'docker compose -f docker-compose.yml logs --tail=50'
                 }
             }
         }

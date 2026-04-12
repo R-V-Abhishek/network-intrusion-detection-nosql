@@ -155,7 +155,8 @@ PRODUCER_CONFIG = {
 
 CASSANDRA_CONFIG = {
     "contact_points": [os.getenv("CASSANDRA_HOST", "localhost")],
-    "port": int(os.getenv("CASSANDRA_PORT", "9042")),
+    # Local host default uses Docker-mapped port; containers override via env to 9042.
+    "port": int(os.getenv("CASSANDRA_PORT", "19042")),
     "keyspace": "nids",
     "tables": {
         "alerts": "alerts",

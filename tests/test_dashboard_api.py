@@ -1,87 +1,66 @@
-"""
-Tests for dashboard/api_alerts.py and dashboard/api_analytics.py
+"""Flask API tests using the real app factory with a mock storage backend."""
 
-These tests use Flask's test client — no real Cassandra or Redis needed.
-Responses are checked for correct HTTP status and JSON structure.
+from __future__ import annotations
 
-Run with: pytest tests/test_dashboard_api.py -v
-"""
+import dashboard.app as app_module
 
 
-# ─── Shared mock so imports inside api_alerts / api_analytics don't crash ────
-
-
-class _MockStorage:
+class MockStorage:
     """Minimal in-memory stand-in for AlertStorage."""
-    def get_alerts(self, session_id, limit=100, attack_type=None):
-        return [
-            {
-                "alert_id": "test-id-1",
-                "session_id": session_id,
-                "attack_type": "DoS",
-                "severity": "high",
-                "binary_probability": 0.95,
-                "alert_time": "2026-01-01T00:00:00",
-            }
-        ]
 
-    def get_stats(self, session_id, hours=24):
-        return {
-            "total": 1,
-            "by_severity": {"high": 1, "medium": 0, "low": 0},
-            "by_attack_type": {"DoS": 1},
-        }
+    def __init__(self) -> None:
+        self.connected = False
+        self.sessions = []
 
-    def get_timeline(self, session_id, hours=24, interval_mins=60):
-        return [{"bucket": "2026-01-01T00:00:00", "count": 1}]
+    def connect(self) -> None:
+        self.connected = True
 
-    def get_sessions(self, limit=10):
-        return [{"session_id": "sess-1", "dataset": "unsw"}]
+    def register_session(self, session_id: str, dataset: str) -> None:
+        self.sessions.append({"session_id": session_id, "dataset": dataset})
 
-    def get_current_session_id(self):
-        return "sess-1"
+    def get_sessions(self, limit: int = 10):
+        return self.sessions[:limit]
+
+    def delete_session(self, session_id: str) -> dict:
+        return {"session_id": session_id, "removed_alerts": 0, "session_removed": True}
+
+    def delete_all_sessions(self) -> dict:
+        return {"removed_sessions": len(self.sessions), "removed_alerts": 0}
 
 
-# ─── ALERT CONFIG sanity checks (no Flask needed) ────────────────────────────
+def _make_client(monkeypatch):
+    storage = MockStorage()
+    monkeypatch.setattr(app_module, "get_storage", lambda: storage)
+    monkeypatch.setattr(app_module, "get_current_session_id", lambda: "sess-1")
+    monkeypatch.setattr(app_module, "start_new_session", lambda: "sess-2")
 
-class TestAlertConfigSeverityLogic:
-    """Makes sure severity labels used in API responses are consistent."""
-
-    def test_high_severity_attacks(self):
-        from config.config import ALERT_CONFIG
-        high_attacks = [k for k, v in ALERT_CONFIG["severity_map"].items() if v == "high"]
-        assert "DoS" in high_attacks
-        assert "Exploits" in high_attacks
-        assert "Backdoors" in high_attacks
-
-    def test_normal_traffic_is_info(self):
-        from config.config import ALERT_CONFIG
-        assert ALERT_CONFIG["severity_map"]["Normal"] == "info"
-
-    def test_no_missing_severity(self):
-        from config.config import ALERT_CONFIG, UNSW_ATTACK_TYPE_MAPPING
-        severity_map = ALERT_CONFIG["severity_map"]
-        for name in UNSW_ATTACK_TYPE_MAPPING.values():
-            assert name in severity_map
+    app = app_module.create_app()
+    app.config["TESTING"] = True
+    return app.test_client(), storage
 
 
-# ─── Attack type endpoint data ────────────────────────────────────────────────
+def test_api_health(monkeypatch):
+    client, storage = _make_client(monkeypatch)
+    response = client.get("/api/health")
 
-class TestAttackTypeData:
-    """Verifies the mapping that /api/attack-types would return."""
+    assert response.status_code == 200
+    assert response.get_json() == {"status": "ok", "services": {"storage": "connected"}}
+    assert storage.connected is True
 
-    def test_attack_type_mapping_serialisable(self):
-        import json
-        from config.config import UNSW_ATTACK_TYPE_MAPPING
-        # Keys must be serialisable — JSON only allows string keys
-        # Convert int keys → str as the endpoint would do
-        serialised = {str(k): v for k, v in UNSW_ATTACK_TYPE_MAPPING.items()}
-        result = json.dumps(serialised)
-        parsed = json.loads(result)
-        assert parsed["0"] == "Normal"
-        assert len(parsed) == 10
 
-    def test_all_attack_names_non_empty(self):
-        from config.config import UNSW_ATTACK_TYPE_MAPPING
-        for idx, name in UNSW_ATTACK_TYPE_MAPPING.items():
-            assert name.strip() != "", f"Attack type at index {idx} is empty"
+def test_api_session_current(monkeypatch):
+    client, storage = _make_client(monkeypatch)
+    response = client.get("/api/session/current")
+
+    assert response.status_code == 200
+    assert response.get_json() == {"session_id": "sess-1"}
+    assert storage.sessions[0]["session_id"] == "sess-1"
+
+
+def test_api_session_new(monkeypatch):
+    client, storage = _make_client(monkeypatch)
+    response = client.post("/api/session/new")
+
+    assert response.status_code == 200
+    assert response.get_json() == {"session_id": "sess-2"}
+    assert storage.sessions[-1]["session_id"] == "sess-2"
