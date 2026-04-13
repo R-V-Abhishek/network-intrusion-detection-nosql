@@ -184,9 +184,8 @@ class AlertStorage:
         if os.getenv("USE_CASSANDRA") != "true":
             print("[Storage] Skipping Cassandra connection")
             return
-            
         try:
-            from cassandra.cluster import Cluster
+            from cassandra.cluster import Cluster  # type: ignore
 
             cluster = Cluster(
                 contact_points=CASSANDRA_CONFIG.get("contact_points", ["localhost"]),
