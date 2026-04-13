@@ -180,6 +180,11 @@ class AlertStorage:
         print(f"[Storage] Redis unavailable, using fallback: {last_error}")
 
     def _connect_cassandra(self) -> None:
+        import os
+        if os.getenv("USE_CASSANDRA") != "true":
+            print("[Storage] Skipping Cassandra connection")
+            return
+            
         try:
             from cassandra.cluster import Cluster
 
