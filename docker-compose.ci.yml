@@ -26,17 +26,4 @@ services:
       timeout: 3s
       retries: 10
 
-  cassandra-ci:
-    image: cassandra:4.1
-    container_name: nids_cassandra_ci
-    ports:
-      - "9043:9042"          # Different port so it doesn't clash with local Cassandra
-    environment:
-      CASSANDRA_CLUSTER_NAME: nids_ci_cluster
-      HEAP_NEWSIZE: 128M     # Use less memory in CI
-      MAX_HEAP_SIZE: 512M
-    healthcheck:
-      test: ["CMD", "cqlsh", "-e", "describe keyspaces"]
-      interval: 15s
-      timeout: 10s
-      retries: 20            # Cassandra takes ~60s to start — give it time
+
