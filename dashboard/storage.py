@@ -166,7 +166,7 @@ class AlertStorage:
         for _ in range(max_retries):
             try:
                 client = redis.Redis(
-                    host=REDIS_CONFIG.get("host", "localhost"),
+                    host=REDIS_CONFIG.get("host") or "redis-ci",
                     port=REDIS_CONFIG.get("port", 6379),
                     db=REDIS_CONFIG.get("db", 0),
                     decode_responses=True,
