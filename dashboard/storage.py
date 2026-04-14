@@ -130,6 +130,8 @@ class AlertStorage:
         self._cass = None           # cassandra.cluster.Session
         self._cass_cluster = None   # cassandra.cluster.Cluster
         self._cass_stmts: dict = {}
+        self.redis_connected = False
+        self.cassandra_connected = False
 
     # ------------------------------------------------------------------
     # Key helpers
@@ -157,7 +159,7 @@ class AlertStorage:
         """Connect to Redis and Cassandra; keeps fallback mode if either is unavailable."""
         self._connect_redis(max_retries)
         self._connect_cassandra()
-        return True
+        return self.redis_connected or self.cassandra_connected
 
     def _connect_redis(self, max_retries: int) -> None:
         last_error: Optional[Exception] = None
@@ -173,11 +175,13 @@ class AlertStorage:
                 )
                 client.ping()
                 self._redis = client
+                self.redis_connected = True
                 print("[Storage] Connected to Redis")
                 return
             except Exception as exc:
                 last_error = exc
         print(f"[Storage] Redis unavailable, using fallback: {last_error}")
+        self.redis_connected = False
 
     def _connect_cassandra(self) -> None:
         try:
@@ -205,9 +209,11 @@ class AlertStorage:
 
             self._cass = session
             self._cass_cluster = cluster
+            self.cassandra_connected = True
             print("[Storage] Connected to Cassandra")
         except Exception as exc:
             print(f"[Storage] Cassandra unavailable, using fallback: {exc}")
+            self.cassandra_connected = False
 
     # ------------------------------------------------------------------
     # Alerts
@@ -552,6 +558,12 @@ class AlertStorage:
                 self._cass_cluster.shutdown()
             except Exception:
                 pass
+
+    def diagnostics(self) -> dict:
+        return {
+            "redis_connected": self.redis_connected,
+            "cassandra_connected": self.cassandra_connected,
+        }
 
 
 # ---------------------------------------------------------------------------
