@@ -42,7 +42,7 @@ pipeline {
                 // Jenkins does this automatically when using "Pipeline from SCM"
                 // but keeping it explicit is good practice
                 checkout scm
-                echo "Code checked out from branch: ${env.BRANCH_NAME}"
+                echo "Code checked out"
             }
         }
 
@@ -172,12 +172,11 @@ pipeline {
         // Feature branches just run stages 1-6 to verify they're safe to merge
         stage('Deploy') {
             when {
-                branch 'master'
+                expression { env.GIT_BRANCH == 'origin/master' }
             }
             steps {
                 sh '''
                     echo "=== Deploying full stack with docker compose ==="
-                    docker compose -f docker-compose.yml down || true
                     docker compose -f docker-compose.yml up -d --build --wait
 
                     echo "=== Stack is up ==="
@@ -201,7 +200,7 @@ pipeline {
             echo "Pipeline finished. Build #${BUILD_NUMBER} on branch ${env.BRANCH_NAME}"
         }
         failure {
-            sh 'docker compose -f docker-compose.ci.yml logs'
+            echo "BUILD FAILED — check the logs above."
             // You can add email/Slack notification here later:
             // mail to: 'your-team@example.com', subject: "NIDS Build Failed #${BUILD_NUMBER}"
         }
@@ -211,7 +210,6 @@ pipeline {
         cleanup {
             // Remove the venv folder after the build to keep the workspace clean
             sh 'rm -rf venv'
-            sh 'docker system prune -f || true'
         }
     }
 }
