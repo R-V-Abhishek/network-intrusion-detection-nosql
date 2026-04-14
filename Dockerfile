@@ -20,6 +20,7 @@ COPY unsw_feature_names.json .
 
 # Run as non-root
 RUN useradd -m appuser && chown -R appuser /app
+RUN apt-get update && apt-get install -y curl
 USER appuser
 
 CMD ["python", "src/main.py"]
