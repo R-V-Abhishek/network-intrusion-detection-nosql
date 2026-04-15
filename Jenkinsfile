@@ -150,7 +150,7 @@ while time.time() < deadline:
     for host in deduped:
         try:
             with socket.create_connection((host, port), timeout=2) as sock:
-                sock.sendall(b"*1\r\n$4\r\nPING\r\n")
+                sock.sendall(b"*1\\r\\n$4\\r\\nPING\\r\\n")
                 reply = sock.recv(16)
                 if reply.startswith(b"+PONG"):
                     print(host)

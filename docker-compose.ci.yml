@@ -11,8 +11,6 @@
 #
 # Your normal docker-compose.yml is used for actual deployment.
 
-version: "3.9"
-
 services:
 
   redis-ci:
