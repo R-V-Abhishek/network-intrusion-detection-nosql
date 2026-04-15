@@ -117,9 +117,59 @@ pipeline {
                     docker compose -f docker-compose.ci.yml down --remove-orphans || true
                     docker rm -f nids_redis_ci || true
                     docker compose -p nids_ci_${BUILD_NUMBER} -f docker-compose.ci.yml up -d --build --wait
+                    docker compose -p nids_ci_${BUILD_NUMBER} -f docker-compose.ci.yml ps
+
+                    echo "=== Resolving reachable Redis endpoint ==="
+                    REDIS_TEST_HOST=$(venv/bin/python - <<'PY'
+import socket
+import subprocess
+import sys
+import time
+
+port = 6380
+candidates = ["localhost", "127.0.0.1", "host.docker.internal", "redis-ci", "redis"]
+
+try:
+    gateway = subprocess.check_output(
+        "ip route | awk '/default/ {print $3; exit}'",
+        shell=True,
+        text=True,
+    ).strip()
+    if gateway:
+        candidates.append(gateway)
+except Exception:
+    pass
+
+deduped = []
+for host in candidates:
+    if host and host not in deduped:
+        deduped.append(host)
+
+deadline = time.time() + 60
+while time.time() < deadline:
+    for host in deduped:
+        try:
+            with socket.create_connection((host, port), timeout=2) as sock:
+                sock.sendall(b"*1\r\n$4\r\nPING\r\n")
+                reply = sock.recv(16)
+                if reply.startswith(b"+PONG"):
+                    print(host)
+                    sys.exit(0)
+        except OSError:
+            continue
+    time.sleep(2)
+
+sys.exit(1)
+PY
+                    ) || {
+                        echo "Redis on port 6380 is not reachable from Jenkins runtime"
+                        docker compose -p nids_ci_${BUILD_NUMBER} -f docker-compose.ci.yml logs --tail=80 redis-ci || true
+                        exit 1
+                    }
+                    echo "Using REDIS_HOST=${REDIS_TEST_HOST} REDIS_PORT=6380"
 
                     echo "=== Running integration tests ==="
-                    REDIS_HOST=localhost REDIS_PORT=6380 NIDS_DISABLE_CASSANDRA=1 NIDS_RUN_INTEGRATION=1 venv/bin/pytest tests/ -m integration \
+                    REDIS_HOST=${REDIS_TEST_HOST} REDIS_PORT=6380 NIDS_DISABLE_CASSANDRA=1 NIDS_RUN_INTEGRATION=1 venv/bin/pytest tests/ -m integration \
                         --junitxml=integration-results.xml
                 '''
             }
