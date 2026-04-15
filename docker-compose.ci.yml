@@ -17,7 +17,6 @@ services:
 
   redis-ci:
     image: redis:7.2-alpine
-    container_name: nids_redis_ci
     ports:
       - "6380:6379"          # Different port so it doesn't clash with local Redis
     healthcheck:
@@ -25,5 +24,7 @@ services:
       interval: 5s
       timeout: 3s
       retries: 10
+
+
 
 

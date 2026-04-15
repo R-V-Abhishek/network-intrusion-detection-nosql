@@ -114,7 +114,9 @@ pipeline {
             steps {
                 sh '''
                     echo "=== Starting CI compose stack ==="
-                    docker compose -f docker-compose.ci.yml up -d --build --wait
+                    docker compose -f docker-compose.ci.yml down --remove-orphans || true
+                    docker rm -f nids_redis_ci || true
+                    docker compose -p nids_ci_${BUILD_NUMBER} -f docker-compose.ci.yml up -d --build --wait
 
                     echo "=== Running integration tests ==="
                     NIDS_RUN_INTEGRATION=1 venv/bin/pytest tests/ -m integration \
@@ -123,7 +125,7 @@ pipeline {
             }
             post {
                 always {
-                    sh 'docker compose -f docker-compose.ci.yml down --remove-orphans'
+                    sh 'docker compose -p nids_ci_${BUILD_NUMBER} -f docker-compose.ci.yml down --remove-orphans || true'
                     junit allowEmptyResults: true, testResults: 'integration-results.xml'
                     archiveArtifacts artifacts: 'integration-results.xml', fingerprint: true
                 }
