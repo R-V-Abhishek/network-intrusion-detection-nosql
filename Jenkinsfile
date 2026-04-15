@@ -272,7 +272,8 @@ PY
             // Remove local Docker images created by this pipeline so old builds do not pile up.
             sh '''
                 docker image ls --format '{{.Repository}}:{{.Tag}} {{.ID}}' \
-                    | awk '$1 ~ /(^nids-app:|\/nids-app:)/ {print $2}' \
+                    | grep -E '(^nids-app:|/nids-app:)' \
+                    | awk '{print $2}' \
                     | sort -u \
                     | xargs -r docker image rm -f || true
                 docker image prune -f || true
