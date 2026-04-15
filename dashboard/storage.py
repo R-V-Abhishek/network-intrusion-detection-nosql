@@ -15,6 +15,8 @@ import json
 from threading import Lock
 from typing import Dict, List, Optional
 import uuid
+import time
+import os
 
 import redis
 
@@ -155,7 +157,7 @@ class AlertStorage:
     # Connection
     # ------------------------------------------------------------------
 
-    def connect(self, max_retries: int = 5) -> bool:
+    def connect(self, max_retries: int = 10) -> bool:
         """Connect to Redis and Cassandra; keeps fallback mode if either is unavailable."""
         self._connect_redis(max_retries)
         self._connect_cassandra()
@@ -166,7 +168,7 @@ class AlertStorage:
         for _ in range(max_retries):
             try:
                 client = redis.Redis(
-                    host=REDIS_CONFIG.get("host") or "redis-ci",
+                    host=os.getenv("REDIS_HOST") or REDIS_CONFIG.get("host") or "localhost",
                     port=REDIS_CONFIG.get("port", 6379),
                     db=REDIS_CONFIG.get("db", 0),
                     decode_responses=True,
@@ -180,6 +182,7 @@ class AlertStorage:
                 return
             except Exception as exc:
                 last_error = exc
+                time.sleep(2)
         print(f"[Storage] Redis unavailable, using fallback: {last_error}")
         self.redis_connected = False
 

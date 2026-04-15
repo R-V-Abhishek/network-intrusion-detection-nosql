@@ -32,6 +32,8 @@ pipeline {
 
         // Set this so tests don't try to connect to real Spark/Kafka/Cassandra
         STUB_MODELS = "true"
+        REDIS_HOST = "redis"
+        REDIS_PORT = "6379"
     }
 
     stages {
