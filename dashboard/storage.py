@@ -187,6 +187,12 @@ class AlertStorage:
         self.redis_connected = False
 
     def _connect_cassandra(self) -> None:
+        # Allow CI/tests to run Redis-only without Cassandra noise/timeouts.
+        if os.getenv("NIDS_DISABLE_CASSANDRA", "0").lower() in ("1", "true", "yes"):
+            print("[Storage] Cassandra disabled by NIDS_DISABLE_CASSANDRA")
+            self.cassandra_connected = False
+            return
+
         try:
             from cassandra.cluster import Cluster
 

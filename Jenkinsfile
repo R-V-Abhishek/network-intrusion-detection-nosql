@@ -119,7 +119,7 @@ pipeline {
                     docker compose -p nids_ci_${BUILD_NUMBER} -f docker-compose.ci.yml up -d --build --wait
 
                     echo "=== Running integration tests ==="
-                    NIDS_RUN_INTEGRATION=1 venv/bin/pytest tests/ -m integration \
+                    REDIS_HOST=localhost REDIS_PORT=6380 NIDS_DISABLE_CASSANDRA=1 NIDS_RUN_INTEGRATION=1 venv/bin/pytest tests/ -m integration \
                         --junitxml=integration-results.xml
                 '''
             }
