@@ -21,6 +21,11 @@ pipeline {
     // Run on any available Jenkins agent (worker machine)
     agent any
 
+    // Keep Jenkins build history small so old runs do not consume disk space.
+    options {
+        buildDiscarder(logRotator(numToKeepStr: '10', artifactNumToKeepStr: '3'))
+    }
+
     // Global environment variables available in every stage
     environment {
         // Name of the Docker image we'll build
@@ -264,6 +269,14 @@ PY
         cleanup {
             // Remove the venv folder after the build to keep the workspace clean
             sh 'rm -rf venv'
+            // Remove local Docker images created by this pipeline so old builds do not pile up.
+            sh '''
+                docker image ls --format '{{.Repository}}:{{.Tag}} {{.ID}}' \
+                    | awk '$1 ~ /(^nids-app:|\/nids-app:)/ {print $2}' \
+                    | sort -u \
+                    | xargs -r docker image rm -f || true
+                docker image prune -f || true
+            '''
         }
     }
 }
