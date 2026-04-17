@@ -14,9 +14,7 @@
 services:
 
   redis-ci:
-    image: redis:7.2-alpine
-    ports:
-      - "6380:6379"          # Different port so it doesn't clash with local Redis
+    image: redis:7.2-alpine       # Different port so it doesn't clash with local Redis
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
