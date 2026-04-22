@@ -1,26 +1,11 @@
-# docker-compose.ci.yml
-#
-# Used by Jenkins ONLY during the Test stage.
-# Spins up lightweight versions of Cassandra + Redis so integration
-# tests that need real services can run inside the CI environment.
-#
-# Usage in Jenkinsfile:
-#   docker compose -f docker-compose.ci.yml up -d
-#   pytest tests/
-#   docker compose -f docker-compose.ci.yml down
-#
-# Your normal docker-compose.yml is used for actual deployment.
-
 services:
 
   redis-ci:
-    image: redis:7.2-alpine       # Different port so it doesn't clash with local Redis
+    image: redis:7.2-alpine
+    ports:
+      - "6380:6379"   # 👈 ADD THIS LINE
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
       timeout: 3s
       retries: 10
-
-
-
-

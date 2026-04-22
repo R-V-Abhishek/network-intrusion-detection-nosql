@@ -23,7 +23,7 @@ pipeline {
 
         STUB_MODELS = "true"
         REDIS_HOST  = "redis"
-        REDIS_PORT  = "6379"
+        REDIS_PORT  = "6380"
     }
 
     stages {
@@ -94,7 +94,7 @@ pipeline {
                     REDIS_TEST_HOST=$(venv/bin/python - <<'PY'
 import socket, subprocess, sys, time
 
-port = 6379
+port = 6380
 candidates = ["localhost", "127.0.0.1", "host.docker.internal", "redis-ci", "redis"]
 
 try:
@@ -123,12 +123,12 @@ while time.time() < deadline:
 sys.exit(1)
 PY
                     ) || {
-                        echo "Redis on port 6379 not reachable"
+                        echo "Redis on port 6380 not reachable"
                         docker compose -p nids_ci_${BUILD_NUMBER} -f docker-compose.ci.yml logs --tail=80 redis-ci || true
                         exit 1
                     }
 
-                    REDIS_HOST=${REDIS_TEST_HOST} REDIS_PORT=6379 NIDS_DISABLE_CASSANDRA=1 NIDS_RUN_INTEGRATION=1 \
+                    REDIS_HOST=${REDIS_TEST_HOST} REDIS_PORT=6380 NIDS_DISABLE_CASSANDRA=1 NIDS_RUN_INTEGRATION=1 \
                         venv/bin/pytest tests/ -m integration --junitxml=integration-results.xml
                 '''
             }
