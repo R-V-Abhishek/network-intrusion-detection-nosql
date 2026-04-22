@@ -15,8 +15,6 @@ services:
       CASSANDRA_HOST: cassandra
       CASSANDRA_PORT: 9042
       KAFKA_BOOTSTRAP_SERVERS: "nids_kafka:9092"
-    volumes:
-      - ./src:/app/src
     networks:
       - nids_net
     healthcheck:
