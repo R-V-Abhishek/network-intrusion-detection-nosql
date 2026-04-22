@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 
 from dashboard.storage import AlertStorage
 
@@ -31,7 +31,7 @@ def test_inmemory_store_get_stats_timeline_delete():
     session_id = "sess-1"
     storage.register_session(session_id, dataset="unsw")
 
-    now = datetime.utcnow()
+    now = datetime.now(UTC)
     older = now - timedelta(minutes=5)
     alerts = [_make_alert(older), _make_alert(now)]
 
@@ -61,7 +61,7 @@ def test_inmemory_delete_all_sessions():
     storage.register_session("sess-1", dataset="unsw")
     storage.register_session("sess-2", dataset="unsw")
 
-    now = datetime.utcnow()
+    now = datetime.now(UTC)
     storage.store_alerts([_make_alert(now)], session_id="sess-1")
     storage.store_alerts([_make_alert(now)], session_id="sess-2")
 

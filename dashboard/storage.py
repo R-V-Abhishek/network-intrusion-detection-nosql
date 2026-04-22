@@ -10,7 +10,7 @@ are unavailable.
 from __future__ import annotations
 
 from collections import Counter, defaultdict
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 import json
 from threading import Lock
 from typing import Dict, List, Optional
@@ -240,7 +240,7 @@ class AlertStorage:
             payload = dict(alert)
             payload["alert_id"] = alert_id
             payload["session_id"] = session_id
-            payload.setdefault("alert_time", datetime.utcnow().isoformat())
+            payload.setdefault("alert_time", datetime.now(UTC).isoformat())
             ids.append(alert_id)
             payloads.append(payload)
 
@@ -375,7 +375,7 @@ class AlertStorage:
 
     def get_stats(self, session_id: str, hours: int = 24) -> dict:
         """Return aggregate counts by severity and attack type."""
-        cutoff = datetime.utcnow() - timedelta(hours=hours)
+        cutoff = datetime.now(UTC) - timedelta(hours=hours)
         rows = [
             r
             for r in self.get_alerts(session_id=session_id, limit=10000)
@@ -392,7 +392,7 @@ class AlertStorage:
 
     def get_timeline(self, session_id: str, hours: int = 24, interval_mins: int = 60) -> List[dict]:
         """Return a fixed-interval alert histogram for charts."""
-        now = datetime.utcnow()
+        now = datetime.now(UTC)
         cutoff = now - timedelta(hours=hours)
         rows = [
             r
@@ -418,7 +418,7 @@ class AlertStorage:
         payload = {
             "session_id": session_id,
             "dataset": dataset,
-            "created_at": datetime.utcnow().isoformat(),
+            "created_at": datetime.now(UTC).isoformat(),
         }
 
         if self._using_cassandra():
