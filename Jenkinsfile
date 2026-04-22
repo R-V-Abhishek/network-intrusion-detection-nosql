@@ -30,8 +30,8 @@ pipeline {
 
         stage('Checkout') {
             steps {
+                deleteDir()
                 checkout scm
-                echo "Code checked out"
             }
         }
 
@@ -141,12 +141,31 @@ PY
             }
         }
 
+        stage('Clean Docker Environment') {
+            steps {
+                sh '''
+                    docker stop $(docker ps -aq) 2>/dev/null || true
+                    docker rm -f $(docker ps -aq) 2>/dev/null || true
+                    docker system prune -af --volumes
+                '''
+            }
+        }
+
+        stage('Verify Workspace') {
+            steps {
+                sh '''
+                    pwd
+                    ls -la
+                    ls -la src
+                '''
+            }
+        }
+
         stage('Build Docker Image') {
             steps {
                 sh '''
-                    docker build -t ${IMAGE_NAME}:${IMAGE_TAG} .
-                    docker tag  ${IMAGE_NAME}:${IMAGE_TAG} ${IMAGE_NAME}:latest
-                    echo "Built ${IMAGE_NAME}:${IMAGE_TAG} (local only)"
+                    pwd
+                    docker build --no-cache -t nids-pipeline-app .
                 '''
             }
         }

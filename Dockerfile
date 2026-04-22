@@ -23,4 +23,6 @@ RUN useradd -m appuser && chown -R appuser /app
 RUN apt-get update && apt-get install -y curl
 USER appuser
 
+RUN ls -R /app
+
 CMD ["python", "src/main.py"]
