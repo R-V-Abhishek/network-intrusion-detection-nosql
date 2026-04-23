@@ -1,16 +1,28 @@
 \documentclass[12pt,a4paper]{report}
 
 % ------ Layout ---------------------------------------------------------------
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage{microtype}
+\usepackage{fix-cm}
 \usepackage{geometry}
-\geometry{a4paper, left=25mm, right=20mm, top=25mm, bottom=25mm}
+\geometry{
+ a4paper,
+ left=20mm,
+ right=20mm,
+ top=20mm,
+ bottom=20mm,
+}
 
 % ------ Colours --------------------------------------------------------------
-\usepackage{xcolor}
-\definecolor{codebg}{rgb}{0.97,0.97,0.97}
-\definecolor{codeblue}{RGB}{0,70,180}
-\definecolor{codegreen}{RGB}{0,130,0}
-\definecolor{codegray}{RGB}{130,130,130}
-\definecolor{codepurple}{RGB}{150,0,150}
+\usepackage[table]{xcolor}
+\definecolor{accentblue}{RGB}{0,51,102}
+\definecolor{accentteal}{RGB}{0,102,102}
+\definecolor{ruleline}{RGB}{180,195,210}
+\definecolor{codegray}{rgb}{0.5,0.5,0.5}
+\definecolor{codegreen}{rgb}{0,0.6,0}
+\definecolor{codeblue}{rgb}{0,0,0.8}
+\definecolor{backcolor}{rgb}{0.96,0.97,0.99}
 
 % ------ Graphics -------------------------------------------------------------
 \usepackage{graphicx}
@@ -25,34 +37,29 @@
 
 % ------ Code listings --------------------------------------------------------
 \usepackage{listings}
-\lstdefinestyle{cqlstyle}{
-  backgroundcolor=\color{codebg},
-  commentstyle=\color{codegreen},
-  keywordstyle=\color{codeblue}\bfseries,
-  stringstyle=\color{codepurple},
-  basicstyle=\ttfamily\small,
-  breaklines=true, captionpos=b,
-  frame=single, rulecolor=\color{codegray},
-  xleftmargin=8pt, tabsize=4,
-  morekeywords={CREATE,KEYSPACE,IF,NOT,EXISTS,WITH,REPLICATION,AND,TABLE,
-                PRIMARY,KEY,CLUSTERING,ORDER,BY,ASC,DESC,INSERT,INTO,VALUES,
-                SELECT,FROM,WHERE,LIMIT,DELETE,UPDATE,SET,CLASS,
-                SimpleStrategy,text,int,double,ALLOW,FILTERING},
+\lstdefinestyle{mystyle}{
+    backgroundcolor=\color{backcolor},
+  framesep=8pt,
+    commentstyle=\color{codegreen},
+    keywordstyle=\color{codeblue},
+    numberstyle=\tiny\color{codegray},
+    stringstyle=\color{codegreen},
+    basicstyle=\ttfamily\footnotesize,
+    breakatwhitespace=false,
+    breaklines=true,
+    captionpos=b,
+    keepspaces=true,
+    numbers=left,
+    numbersep=5pt,
+    showspaces=false,
+    showstringspaces=false,
+    showtabs=false,
+    tabsize=2
 }
-\lstdefinestyle{bashstyle}{
-  backgroundcolor=\color{codebg},
-  basicstyle=\ttfamily\small,
-  breaklines=true, frame=single,
-  rulecolor=\color{codegray}, xleftmargin=8pt,
-}
-\lstdefinestyle{groovystyle}{
-  backgroundcolor=\color{codebg},
-  commentstyle=\color{codegreen}\itshape,
-  keywordstyle=\color{codeblue}\bfseries,
-  basicstyle=\ttfamily\small,
-  breaklines=true, frame=single,
-  rulecolor=\color{codegray}, xleftmargin=8pt,
-}
+\lstset{style=mystyle}
+\lstdefinestyle{cqlstyle}{style=mystyle}
+\lstdefinestyle{bashstyle}{style=mystyle}
+\lstdefinestyle{groovystyle}{style=mystyle}
 
 % ------ TikZ -----------------------------------------------------------------
 \usepackage{tikz}
@@ -89,42 +96,67 @@
 \usepackage{titlesec}
 \usepackage{fancyhdr}
 \usepackage{setspace}
-\usepackage{eso-pic}         % reliable shipout-level background drawing
-% ------ Professional page border (consistent on every page) -----------------
-\AddToShipoutPictureBG{%
-  \begin{tikzpicture}[remember picture, overlay]
-    \draw[line width=1.5pt]
-      ([xshift=8mm, yshift=-8mm]current page.north west)
-      rectangle
-      ([xshift=-8mm, yshift=8mm]current page.south east);
-  \end{tikzpicture}%
-}
 
 % ------ Hyperlinks (load last) -----------------------------------------------
-\usepackage[colorlinks=true,linkcolor=blue!50!black,
-            urlcolor=blue,citecolor=green!40!black,
-            breaklinks=true]{hyperref}
+\usepackage{hyperref}
+\hypersetup{
+  colorlinks=true,
+  citecolor=accentblue,
+  linkcolor=accentblue,
+  urlcolor=accentteal
+}
 
 % ------ Suppress text overflows gracefully -----------------------------------
 \setlength{\emergencystretch}{3em}
-
 % ------ Part numbering A/B ---------------------------------------------------
 \renewcommand{\thepart}{\Alph{part}}
 
-% ------ Page style -----------------------------------------------------------
-\setlength{\headheight}{15pt}        % silence fancyhdr warning
-\pagestyle{fancy}
-\fancyhf{}
-\rhead{\small\textit{NIDS --- DevOps Lab Report}}
-\lhead{\small Ullas N \textbar{} H S Bhat \textbar{} R V Abhishek}
-\cfoot{\thepage}
-\renewcommand{\headrulewidth}{0.4pt}
-\renewcommand{\footrulewidth}{0.4pt}
+% ------ Chapter/section typography (Cloud style) -----------------------------
+\titleformat{\chapter}[display]
+  {\normalfont\bfseries\color{accentblue}}
+  {\makebox[\textwidth][l]{\fontsize{36}{42}\selectfont\chaptername\ \thechapter}}
+  {0pt}
+  {\centering\fontsize{26}{32}\selectfont}
+  [\vspace{2pt}\textcolor{ruleline}{\hrule height 1.5pt}\vspace{4pt}]
+\titlespacing*{\chapter}{0pt}{0pt}{14pt}
+
+\titleformat{\section}
+  {\normalfont\fontsize{12}{14}\bfseries\color{accentblue}}
+  {\thesection}{1em}{}
+\titlespacing*{\section}{0pt}{*2}{*1.5}
+
+\titleformat{\subsection}
+  {\normalfont\fontsize{12}{14}\bfseries\itshape}{\thesubsection}{1em}{}
+\titlespacing*{\subsection}{0pt}{*1.5}{*1}
+
+\titleformat{\subsubsection}
+  {\normalfont\fontsize{12}{14}\bfseries\itshape}{\thesubsubsection}{1em}{}
+\titlespacing*{\subsubsection}{0pt}{*1}{*0.5}
+
+% ------ Page style (Cloud style) ---------------------------------------------
 \fancypagestyle{plain}{%
   \fancyhf{}
-  \cfoot{\thepage}
   \renewcommand{\headrulewidth}{0pt}
-  \renewcommand{\footrulewidth}{0.4pt}
+  \renewcommand{\footrulewidth}{0pt}
+}
+\fancypagestyle{chapterstyle}{%
+  \fancyhf{}
+  \fancyhead[L]{\leftmark}
+  \fancyhead[R]{\thepage}
+  \fancyfoot[C]{\small B.M.S College of Engineering, Bangalore}
+  \renewcommand{\headrule}{\hbox to\headwidth{\color{accentblue}\leaders\hrule height 1.5pt\hfill}}
+  \renewcommand{\footrulewidth}{1.0pt}
+}
+
+\newif\ifshowimages
+\showimagestrue
+
+\newcommand{\myimage}[2]{%
+  \ifshowimages
+    \IfFileExists{#2}{\includegraphics[width=#1]{#2}}{\fbox{\ttfamily\detokenize{#2}}}
+  \else
+    \fbox{\ttfamily\detokenize{#2}}
+  \fi
 }
 
 % ------ Screenshot placeholder -----------------------------------------------
@@ -144,16 +176,24 @@
 
 % =============================================================================
 \begin{document}
+\linespread{1.39}\selectfont
+\pagestyle{plain}
+\onehalfspacing
+\pagenumbering{gobble}
 % =============================================================================
 
 % ---- TITLE PAGE -------------------------------------------------------------
 \begin{titlepage}
 \begin{center}
-\textsc{\Large\textbf{\textcolor{blue}{B.M.S.\ COLLEGE OF ENGINEERING}}}\\[0.1cm]
+\textsc{\Large\textcolor{accentblue}{B.M.S.\ COLLEGE OF ENGINEERING}}\\[0.1cm]
 \textsc{(Autonomous College under VTU)}\\[0.1cm]
 \textsc{Bull Temple Road, Basavangudi, Bangalore -- 560019}\\[0.5cm]
 
-\includegraphics[scale=0.6]{logo.png}\\[0.4cm]
+\noindent\textcolor{accentblue}{\rule{\linewidth}{1.5pt}}\\[0.35cm]
+
+\myimage{0.50\linewidth}{logo.png}\\[0.4cm]
+
+\noindent\textcolor{accentblue}{\rule{\linewidth}{1.5pt}}\\[0.45cm]
 
 \textbf{\Large DEVOPS LAB REPORT}\\[0.5cm]
 \textbf{BACHELOR OF ENGINEERING}\\
@@ -172,9 +212,11 @@
 
 \textbf{Department of CSE -- Data Science}\\
 \textbf{B.M.S.\ College of Engineering}\\[0.4cm]
-\textbf{AY 2024--2025}
+\textbf{AY 2025--2026}
 \end{center}
 \end{titlepage}
+\pagenumbering{roman}
+\setcounter{page}{1}
 
 % ---- CERTIFICATE ------------------------------------------------------------
 \newpage
@@ -189,28 +231,27 @@ This is to certify that the DevOps Lab report titled
 and CI/CD Pipeline''} submitted by \textbf{Ullas N (1BM23CD067)},
 \textbf{H Sampreeth Bhat (1BM23CD020)}, and \textbf{R V Abhishek (1BM23CD047)} is a
 bonafide record of work carried out under my supervision during the academic
-year 2024--2025, in partial fulfilment of the requirements for the award of
+year 2025--2026, in partial fulfilment of the requirements for the award of
 the degree of Bachelor of Engineering in Computer Science \& Engineering
 (Data Science) at B.M.S.\ College of Engineering, Bangalore.
 
 \vspace{1cm}
 \begin{center}
-  \begin{tabular}{|c|c|c|}
-    \hline
+  \rowcolors{2}{blue!4}{white}
+  \begin{tabular}{ccc}
+    \toprule
     \textbf{Sl.\ No.} & \textbf{Name} & \textbf{USN} \\
-    \hline
+    \midrule
     1 & Ullas N & 1BM23CD067 \\
-    \hline
     2 & H Sampreeth Bhat & 1BM23CD020 \\
-    \hline
     3 & R V Abhishek & 1BM23CD047 \\
-    \hline
+    \bottomrule
   \end{tabular}
 \end{center}
 \vspace{1.5cm}
 \noindent\textbf{Guide: Sandhya G}\hfill\textbf{HOD}
 \vfill
-\noindent\textbf{Date:}\hspace{1cm}April 2025
+\noindent\textbf{Date:}\hspace{1cm}April 2026
 
 % ---- DECLARATION ------------------------------------------------------------
 \newpage
@@ -229,29 +270,59 @@ submitted elsewhere for any degree or examination.
 
 \vspace{1.5cm}
 \begin{center}
-  \begin{tabular}{|c|c|c|}
-    \hline
+  \rowcolors{2}{blue!4}{white}
+  \begin{tabular}{ccc}
+    \toprule
     \textbf{Sl.\ No.} & \textbf{Name} & \textbf{USN} \\
-    \hline
+    \midrule
     1 & Ullas N & 1BM23CD067 \\
-    \hline
     2 & H Sampreeth Bhat & 1BM23CD020 \\
-    \hline
     3 & R V Abhishek & 1BM23CD047 \\
-    \hline
+    \bottomrule
   \end{tabular}
 \end{center}
 \vspace{1.5cm}
 \noindent\textbf{Signature of Students}\hfill\textbf{Signature of Guide}
 \vfill
-\noindent\textbf{Date:}\hspace{1cm}April 2025
+\noindent\textbf{Date:}\hspace{1cm}April 2026
 
 % ---- TABLE OF CONTENTS ------------------------------------------------------
 \tableofcontents
 \newpage
+\listoffigures
+\newpage
+\listoftables
+\newpage
+
+% ---- ABSTRACT ---------------------------------------------------------------
+\thispagestyle{plain}
+\begin{center}
+  \textbf{\Large ABSTRACT}
+\end{center}
+\vspace{0.5cm}
+
+This report presents a real-time Network Intrusion Detection System (NIDS)
+that combines streaming analytics, machine learning inference, and NoSQL data
+management in a production-style DevOps workflow. The system ingests
+UNSW-NB15 traffic records through Apache Kafka, performs two-stage inference
+using Gradient Boosted Trees (binary attack detection) and Random Forest
+(attack-type classification), and stores outputs in a Cassandra + Redis dual
+database architecture for durable persistence and low-latency dashboard reads.
+
+The implementation is integrated with a Jenkins-driven CI/CD pipeline that
+automates linting, testing, image builds, and branch-gated deployment using
+Docker Compose. The design demonstrates how model-serving, stream processing,
+NoSQL storage, and deployment automation can be combined into a reproducible
+and scalable cybersecurity analytics platform suitable for academic and
+industry-aligned DevOps practice.
+\newpage
 
 % #############################################################################
+\pagenumbering{arabic}
 \part{Next Gen Databases (NGD)}
+This part explains the storage architecture of the NIDS platform, including
+the rationale for selecting Cassandra and Redis, schema design decisions,
+query patterns, and performance-oriented data operations.
 % #############################################################################
 
 % =============================================================================
@@ -314,12 +385,14 @@ A university or enterprise Network Operations Centre (NOC) uses this system to:
   \item Query historical alerts by session, time range, or attack category
         through the Flask REST API and dashboard.
   \item Receive instant live notifications the moment a high-severity threat
-        (DoS, Exploits, Shellcode, Backdoors) is detected via Redis pub/sub.
+    (DoS, Exploits, Shellcode, Backdoor) is detected via Redis pub/sub.
 \end{enumerate}
 
 The system uses the \textbf{UNSW-NB15 dataset} from the University of New South
-Wales Canberra---a benchmark network security dataset with 2.5 million real
-traffic records, 42 feature columns, and 9 distinct attack categories.
+  Wales Canberra---a benchmark network security dataset with 2.5 million raw
+  traffic records and a standard train/test split of 175,341 / 82,332 records
+  used for model training and evaluation, with 42 feature columns and 9
+  distinct attack categories.
 
 \begin{figure}[H]
 \centering
@@ -344,6 +417,18 @@ traffic records, 42 feature columns, and 9 distinct attack categories.
 \caption{High-level system architecture of the Real-Time NIDS}
 \label{fig:architecture}
 \end{figure}
+\begin{center}
+\begin{tikzpicture}[baseline]
+  \node[sysbox, minimum width=0.9cm, minimum height=0.35cm, inner sep=1pt] at (0,0) {};
+  \node[anchor=west,font=\scriptsize] at (0.55,0) {System Components};
+  \node[dbbox, minimum width=0.9cm, minimum height=0.35cm, inner sep=1pt] at (4.1,0) {};
+  \node[anchor=west,font=\scriptsize] at (4.65,0) {Databases};
+  \node[uibox, minimum width=0.9cm, minimum height=0.35cm, inner sep=1pt] at (7.3,0) {};
+  \node[anchor=west,font=\scriptsize] at (7.85,0) {Dashboard/UI};
+  \node[mlbox, minimum width=0.9cm, minimum height=0.35cm, inner sep=1pt] at (10.6,0) {};
+  \node[anchor=west,font=\scriptsize] at (11.15,0) {ML Inference};
+\end{tikzpicture}
+\end{center}
 
 % =============================================================================
 \chapter{Selection and Justification of NoSQL Database}
@@ -416,32 +501,27 @@ No single database handles both optimally.  The
   \centering
   \caption{NoSQL vs.\ RDBMS comparison for the NIDS use case}
   \label{tab:nosql-vs-rdbms}
-  \begin{tabularx}{\textwidth}{|l|X|X|X|}
-    \hline
+  \rowcolors{2}{blue!4}{white}
+  \begin{tabularx}{\textwidth}{lXXX}
+    \toprule
     \textbf{Criterion} & \textbf{RDBMS (PostgreSQL)} &
     \textbf{Cassandra} & \textbf{Redis} \\
-    \hline
+    \midrule
     Schema flexibility  & Fixed; \texttt{ALTER TABLE} needed &
     Flexible; add columns freely & Schema-free key-value \\
-    \hline
     Write throughput    & Medium (WAL, row locks) &
     Very high (LSM-tree, no locks) & Extremely high (RAM) \\
-    \hline
     Read latency        & Low--medium (with index) &
     Low (partition + cluster key) & Sub-millisecond \\
-    \hline
     Horizontal scaling  & Difficult (manual sharding) &
     Native (token ring) & Cluster mode \\
-    \hline
     Persistence         & Durable (WAL) &
     Durable (commit log + SSTables) & Optional (AOF/RDB) \\
-    \hline
     Query language      & Full SQL with JOINs &
     CQL (no JOINs) & Commands (GET, LRANGE, \ldots) \\
-    \hline
     Best fit            & Not ideal for NIDS &
     Alert archival & Live dashboard feed \\
-    \hline
+    \bottomrule
   \end{tabularx}
 \end{table}
 
@@ -479,53 +559,39 @@ Redis maintains five key patterns:
 \section{Structure / Attributes}
 
 \subsection{Cassandra \texttt{nids.alerts} Table}
-\begin{longtable}{|l|l|p{6cm}|}
+\rowcolors{2}{blue!4}{white}
+\begin{longtable}{llp{6cm}}
   \caption{Column definitions for \texttt{nids.alerts}}
   \label{tab:alerts-cols} \\
-  \hline
+  \toprule
   \textbf{Column} & \textbf{Type} & \textbf{Description} \\
-  \hline\endfirsthead
-  \hline
+  \midrule\endfirsthead
+  \toprule
   \textbf{Column} & \textbf{Type} & \textbf{Description} \\
-  \hline\endhead
+  \midrule\endhead
   \texttt{session\_id}      & text   & \textbf{Partition key} --- groups all
     alerts for one session on the same Cassandra node \\
-  \hline
   \texttt{alert\_time}      & text   & \textbf{Clustering key (DESC)} ---
     ISO~8601 timestamp; rows stored newest-first within the partition \\
-  \hline
   \texttt{alert\_id}        & text   & \textbf{Clustering key (ASC)} ---
     UUID ensuring uniqueness when two alerts share the same timestamp \\
-  \hline
   \texttt{attack\_type}     & text   & Human-readable attack category
     (e.g.\ DoS, Exploits, Fuzzers) \\
-  \hline
   \texttt{severity}         & text   & Severity tier: \textit{high} /
     \textit{medium} / \textit{low} / \textit{info} \\
-  \hline
   \texttt{src\_ip}          & text   & Source IP address \\
-  \hline
   \texttt{dst\_ip}          & text   & Destination IP address \\
-  \hline
   \texttt{src\_port}        & int    & Source port number \\
-  \hline
   \texttt{dst\_port}        & int    & Destination port number \\
-  \hline
   \texttt{protocol}         & text   & Network protocol (tcp / udp / other)\\
-  \hline
   \texttt{binary\_prediction}  & int    & GBT output: 0 = Normal, 1 = Attack\\
-  \hline
   \texttt{binary\_probability} & double & GBT confidence score (0.0--1.0) \\
-  \hline
   \texttt{attack\_confidence}  & double & RF confidence for the predicted
     attack type (0.0--1.0) \\
-  \hline
   \texttt{sbytes}           & int    & Source-to-destination bytes \\
-  \hline
   \texttt{dbytes}           & int    & Destination-to-source bytes \\
-  \hline
   \texttt{rate}             & double & Connection rate (packets/second) \\
-  \hline
+  \bottomrule
 \end{longtable}
 
 \subsection{Cassandra \texttt{nids.sessions} Table}
@@ -533,17 +599,16 @@ Redis maintains five key patterns:
   \centering
   \caption{Column definitions for \texttt{nids.sessions}}
   \label{tab:sessions-cols}
-  \begin{tabular}{|l|l|p{7cm}|}
-    \hline
+  \rowcolors{2}{blue!4}{white}
+  \begin{tabular}{llp{7cm}}
+    \toprule
     \textbf{Column}   & \textbf{Type} & \textbf{Description} \\
-    \hline
+    \midrule
     \texttt{session\_id}  & text & \textbf{Primary key} --- UUID for the
       streaming session \\
-    \hline
     \texttt{dataset}      & text & Dataset name (e.g.\ ``unsw'') \\
-    \hline
     \texttt{created\_at}  & text & ISO~8601 start timestamp \\
-    \hline
+    \bottomrule
   \end{tabular}
 \end{table}
 
@@ -552,24 +617,21 @@ Redis maintains five key patterns:
   \centering
   \caption{Redis key patterns and data types}
   \label{tab:redis-keys}
-  \begin{tabularx}{\textwidth}{|l|l|X|}
-    \hline
+  \rowcolors{2}{blue!4}{white}
+  \begin{tabularx}{\textwidth}{llX}
+    \toprule
     \textbf{Key Pattern}                  & \textbf{Type} & \textbf{Contents} \\
-    \hline
+    \midrule
     \texttt{nids:alerts:\{sid\}}         & List & JSON alert objects, newest
       first; capped at 1\,000 \\
-    \hline
     \texttt{nids:sessions}               & List & All session IDs \\
-    \hline
     \texttt{nids:stats:\{sid\}}          & String (JSON) & Aggregated counts
       by severity and attack type \\
-    \hline
     \texttt{nids:timeline:\{sid\}}       & String (JSON) & Hourly bucketed
       alert counts for analytics \\
-    \hline
     \texttt{alert\_notifications}        & Pub/Sub & Real-time event stream
       from Spark pipeline \\
-    \hline
+    \bottomrule
   \end{tabularx}
 \end{table}
 
@@ -1002,22 +1064,18 @@ with O(1) access to any range via \texttt{LRANGE}.
   \centering
   \caption{Query efficiency analysis for core NIDS operations}
   \label{tab:efficiency}
-  \begin{tabularx}{\textwidth}{|l|X|l|}
-    \hline
+  \rowcolors{2}{blue!4}{white}
+  \begin{tabularx}{\textwidth}{lXl}
+    \toprule
     \textbf{Operation}      & \textbf{Approach}                          & \textbf{Complexity} \\
-    \hline
+    \midrule
     Insert one alert        & Cassandra prepared \texttt{INSERT}         & O(1) \\
-    \hline
     Latest 100 alerts       & Cassandra \texttt{SELECT \ldots LIMIT 100} & O(100) \\
-    \hline
     Live feed (20 alerts)   & Redis \texttt{LRANGE [0,\,19]}             & O(20) \\
-    \hline
     Stats/timeline          & Redis \texttt{GET} (pre-computed JSON)     & O(1) \\
-    \hline
     Delete a session        & Cassandra partition \texttt{DELETE}        & O(1) tombstone \\
-    \hline
     Filter by attack type   & \texttt{ALLOW FILTERING} within partition  & O($P$), $P \leq 1000$ \\
-    \hline
+    \bottomrule
   \end{tabularx}
 \end{table}
 
@@ -1073,7 +1131,7 @@ split:
 \begin{itemize}
   \item Training set: \textbf{175\,341} records
   \item Test set: \textbf{82\,332} records
-  \item Feature set: \textbf{39 numeric} $+$ \textbf{3 categorical} (proto,
+  \item Feature set: \textbf{39 selected numeric} $+$ \textbf{3 categorical} (proto,
         service, state) $=$ 42 total features
 \end{itemize}
 
@@ -1081,18 +1139,18 @@ split:
   \centering
   \caption{Machine learning model performance on the UNSW-NB15 test set}
   \label{tab:model-performance}
-  \begin{tabular}{|l|l|c|c|c|}
-    \hline
+  \rowcolors{2}{blue!4}{white}
+  \begin{tabular}{llccc}
+    \toprule
     \textbf{Stage}  & \textbf{Algorithm}          & \textbf{Metric}
     & \textbf{Value} & \textbf{Task} \\
-    \hline
+    \midrule
     Binary          & Gradient Boosted Trees (GBT) & AUC-ROC  & \textbf{0.9826} & Normal vs Attack \\
     classifier      &                              & Accuracy & 87.44\%         & \\
                     &                              & F1-Score & 89.63\%         & \\
-    \hline
     Multiclass      & Random Forest (RF)           & Accuracy & 79.63\%         & 9 attack categories \\
     classifier      &                              & Wtd.~F1  & 77.21\%         & \\
-    \hline
+    \bottomrule
   \end{tabular}
 \end{table}
 
@@ -1104,7 +1162,7 @@ split:
 \vspace{0.3cm}
 \noindent Severity tiers assigned to each category by the pipeline:
 \begin{itemize}
-  \item \textit{High:}   DoS, Exploits, Shellcode, Backdoors
+  \item \textit{High:}   DoS, Exploits, Shellcode, Backdoor
   \item \textit{Medium:} Fuzzers, Generic, Worms
   \item \textit{Low:}    Reconnaissance, Analysis
   \item \textit{Info:}   Normal traffic (binary\_prediction = 0)
@@ -1114,28 +1172,28 @@ split:
 
 \begin{figure}[H]
   \centering
-  \includegraphics[width=0.95\linewidth]{Dashboard.png}
+  \myimage{0.95\linewidth}{Dashboard.png}
   \caption{NIDS Live Dashboard --- real-time severity doughnut chart (138 alerts: 38 high, 89 medium, 11 low), session info card, and live alert feed}
   \label{fig:dashboard}
 \end{figure}
 
 \begin{figure}[H]
   \centering
-  \includegraphics[width=0.95\linewidth]{Alerts.png}
+  \myimage{0.95\linewidth}{Alerts.png}
   \caption{Alerts Page --- filterable and sortable table showing attack type, severity badge, confidence score, source and destination}
   \label{fig:alerts}
 \end{figure}
 
 \begin{figure}[H]
   \centering
-  \includegraphics[width=0.95\linewidth]{Analytics.png}
+  \myimage{0.95\linewidth}{Analytics.png}
   \caption{Analytics Page --- bar chart of attack-type distribution (Generic \textrightarrow{} Fuzzers \textrightarrow{} Exploits leading) and alert timeline}
   \label{fig:analytics}
 \end{figure}
 
 \begin{figure}[H]
   \centering
-  \includegraphics[width=0.95\linewidth]{Settings.png}
+  \myimage{0.95\linewidth}{Settings.png}
   \caption{Settings Page --- session management with two sessions listed, service health indicator showing storage CONNECTED}
   \label{fig:settings}
 \end{figure}
@@ -1194,27 +1252,30 @@ split:
   \centering
   \caption{Advantages demonstrated by Cassandra and Redis in the NIDS}
   \label{tab:nosql-advantages}
-  \begin{tabularx}{\textwidth}{|l|X|}
-    \hline
+  \rowcolors{2}{blue!4}{white}
+  \begin{tabularx}{\textwidth}{lX}
+    \toprule
     \textbf{Database} & \textbf{Key Advantages Demonstrated} \\
-    \hline
+    \midrule
     Apache Cassandra &
     Partition-aware storage groups all session alerts on one node;
     free descending sort via the clustering key eliminates \texttt{ORDER BY}
     at query time; idempotent \texttt{IF NOT EXISTS} schema creation removes
     startup races; no single point of failure in cluster mode \\
-    \hline
     Redis &
     Sub-millisecond list retrieval for the live alert feed;
     automatic TTL-based cache eviction prevents memory leaks;
     pub/sub channel for zero-latency event notification to connected clients;
     optional AOF/RDB persistence for durability when needed \\
-    \hline
+    \bottomrule
   \end{tabularx}
 \end{table}
 
 % #############################################################################
 \part{DevOps Pipeline}
+This part documents the automation pipeline, from webhook-triggered
+integration checks to controlled deployment, and presents practical CI/CD
+challenges resolved during implementation.
 % #############################################################################
 
 % =============================================================================
@@ -1253,34 +1314,28 @@ development environment and the production deployment artefact.
   \centering
   \caption{DevOps tools used in the NIDS CI/CD pipeline}
   \label{tab:tools}
-  \begin{tabular}{|l|l|p{6cm}|}
-    \hline
+  \rowcolors{2}{blue!4}{white}
+  \begin{tabular}{llp{6cm}}
+    \toprule
     \textbf{Tool}         & \textbf{Version}       & \textbf{Purpose} \\
-    \hline
+    \midrule
     Git / GitHub          & ---                    & Source control; pull requests;
       webhook trigger \\
-    \hline
     Jenkins               & LTS (Docker container) & CI/CD server; pipeline
       orchestration; build history \\
-    \hline
     Docker Desktop        & 29.2.1                 & Container runtime for
       Jenkins and the full app stack \\
-    \hline
     Docker Compose        & v2.24.6                & Multi-container application
       deployment \\
-    \hline
-    ngrok                 & 3.36.1                 & Static HTTPS tunnel exposing
+    ngrok                 & 3.8.2                  & Static HTTPS tunnel exposing
       Jenkins to GitHub webhooks \\
-    \hline
     flake8                & $\geq$7.0.0            & Python linter; enforces
       PEP~8 (max 110 chars/line) \\
-    \hline
     pytest                & $\geq$8.0.0            & Python test runner; JUnit
       XML output for Jenkins \\
-    \hline
-    Python                & 3.13.5 (in Jenkins)    & Runtime for linting and
+    Python                & 3.12 (in Jenkins)      & Runtime for linting and
       testing inside the pipeline \\
-    \hline
+    \bottomrule
   \end{tabular}
 \end{table}
 
@@ -1393,8 +1448,8 @@ pipeline {
 
 \begin{figure}[H]
   \centering
-  \includegraphics[width=0.95\linewidth]{{Screenshot 2026-04-23 143030}.png}
-  \caption{Jenkins Blue Ocean pipeline view for Build~\#7 --- all ten stages green (Checkout SCM \textrightarrow{} Install Dependencies \textrightarrow{} Quality [Lint + Unit Tests in parallel] \textrightarrow{} Integration Tests \textrightarrow{} Clean Docker \textrightarrow{} Verify Workspace \textrightarrow{} Build Docker Image \textrightarrow{} Deploy \textrightarrow{} Post Actions), overall result: SUCCESS in 5\,min\,8\,sec}
+  \myimage{0.95\linewidth}{{Screenshot 2026-04-23 143030}.png}
+  \caption{Jenkins Blue Ocean pipeline view for Build~\#7 --- all six stages green (Checkout \textrightarrow{} Install Dependencies \textrightarrow{} Lint \textrightarrow{} Test \textrightarrow{} Build Docker Image \textrightarrow{} Deploy), overall result: SUCCESS in 5\,min\,8\,sec}
   \label{fig:stages}
 \end{figure}
 
@@ -1413,7 +1468,7 @@ unit tests---without any human intervention.
   \item A developer pushes code to GitHub (any branch) or opens a pull
         request.
   \item GitHub fires a webhook \texttt{POST} to the static ngrok domain:\\
-        \small\url{https://unattackable-agueda-unauthoritatively.ngrok-free.app/github-webhook/}
+      \small static domain\footnote{\url{https://unattackable-agueda-unauthoritatively.ngrok-free.app/github-webhook/}}
   \item ngrok forwards the HTTPS request to \texttt{localhost:8080} (Jenkins
         running inside Docker on the developer's machine).
   \item Jenkins validates the webhook payload and enqueues a new build for
@@ -1450,47 +1505,43 @@ Jenkinsfile) causes \texttt{pipeline\_runner.py} to skip real model loading
 and return deterministic dummy predictions.  This is the key design decision
 enabling CI with \textbf{zero external service dependencies}.
 
-\subsection{Verified Build Result: Build \#8}
+\subsection{Verified Build Result: Build \#7}
 
 \begin{table}[H]
   \centering
-  \caption{Jenkins Build \#8 stage-by-stage results (fully green)}
-  \label{tab:build8}
-  \begin{tabular}{|l|c|l|}
-    \hline
+  \caption{Jenkins Build \#7 stage-by-stage results (fully green)}
+  \label{tab:build7}
+  \rowcolors{2}{blue!4}{white}
+  \begin{tabular}{lcl}
+    \toprule
     \textbf{Stage}           & \textbf{Status} & \textbf{Detail} \\
-    \hline
+    \midrule
     Checkout                 & \textcolor{codegreen}{\textbf{PASSED}} &
       Latest master commit pulled \\
-    \hline
     Install Dependencies     & \textcolor{codegreen}{\textbf{PASSED}} &
       All packages from requirements.txt installed \\
-    \hline
     Lint                     & \textcolor{codegreen}{\textbf{PASSED}} &
       \textbf{0 flake8 errors} \\
-    \hline
     Test                     & \textcolor{codegreen}{\textbf{PASSED}} &
       \textbf{38 / 38 tests passed}, 0 failures \\
-    \hline
     Build Docker Image       & \textcolor{codegreen}{\textbf{PASSED}} &
-      Image \texttt{nids-app:8} and \texttt{nids-app:latest} created \\
-    \hline
+      Image \texttt{nids-app:7} and \texttt{nids-app:latest} created \\
     Deploy                   & \textcolor{codegreen}{\textbf{PASSED}} &
       Full 4-container stack running (master branch) \\
-    \hline
+    \bottomrule
   \end{tabular}
 \end{table}
 
 \begin{figure}[H]
   \centering
-  \includegraphics[width=0.95\linewidth]{{Screenshot 2026-04-23 142917}.png}
-  \caption{Jenkins\texttt{ nids-pipeline} status page --- Build~\#7 successful (green badge), build artefacts (\texttt{coverage.xml}, \texttt{integration-results.xml}, \texttt{test-results.xml}), and Latest Test Result showing \textbf{no failures}. Right panel shows Test Result Trend and Code Coverage Trend graphs across builds \#1--\#7.}
+  \myimage{0.95\linewidth}{{Screenshot 2026-04-23 142917}.png}
+  \caption{Jenkins\texttt{ nids-pipeline} status page --- Build~\#7 successful (green badge), build artefacts (\texttt{integration-results.xml}, \texttt{test-results.xml}), and Latest Test Result showing \textbf{no failures}. Right panel shows Test Result Trend and Code Coverage Trend graphs across builds \#1--\#7.}
   \label{fig:build-success}
 \end{figure}
 
 \begin{figure}[H]
   \centering
-  \includegraphics[width=0.95\linewidth]{{Screenshot 2026-04-23 142936}.png}
+  \myimage{0.95\linewidth}{{Screenshot 2026-04-23 142936}.png}
   \caption{Jenkins Build~\#7 detail page --- started by SCM change, took 5\,min\,8\,sec, Tests: no failures, Coverage: Line 57.50\% (+3.09\%), triggered by commit \textit{refactor: simplify app initialisation in app.py}.}
   \label{fig:test-results}
 \end{figure}
@@ -1518,19 +1569,17 @@ docker compose ps              # print live container status to console log
   \centering
   \caption{Services in the Docker Compose deployment stack}
   \label{tab:services}
-  \begin{tabular}{|l|l|l|p{4.2cm}|}
-    \hline
+  \rowcolors{2}{blue!4}{white}
+  \begin{tabular}{lllp{4.2cm}}
+    \toprule
     \textbf{Service}   & \textbf{Docker Image}               & \textbf{Port}  & \textbf{Role} \\
-    \hline
+    \midrule
     \texttt{app}       & Custom (Dockerfile)                 & 5000:5000      & Flask NIDS dashboard + REST API \\
-    \hline
     \texttt{redis}     & \texttt{redis:7-alpine}             & internal 6379  & Alert cache; pub/sub broker \\
-    \hline
     \texttt{cassandra} & \texttt{cassandra:4.1}              & internal 9042  & Persistent alert store \\
-    \hline
-    \texttt{kafka}     & \texttt{cp-kafka:7.5.0}             & 19092 (ext),
+    \texttt{kafka}     & \texttt{confluentinc/cp-kafka:7.5.0} & 19092 (ext),
       internal 9092 & Streaming broker (KRaft, no ZooKeeper) \\
-    \hline
+    \bottomrule
   \end{tabular}
 \end{table}
 
@@ -1556,7 +1605,7 @@ redeploy.
 
 \begin{figure}[H]
   \centering
-  \includegraphics[width=0.95\linewidth]{{Screenshot 2026-04-23 143141}.png}
+  \myimage{0.95\linewidth}{{Screenshot 2026-04-23 143141}.png}
   \caption{Jenkins console output for the Deploy stage --- \texttt{docker compose ps} confirms all four services (\texttt{nids\_app}, \texttt{nids\_cassandra}, \texttt{nids\_kafka}, \texttt{nids\_redis}) are Up and healthy. Final lines show ``Deployment successful! Dashboard: \url{http://localhost:5000}'' and BUILD SUCCEEDED.}
   \label{fig:deploy}
 \end{figure}
@@ -1569,14 +1618,7 @@ redeploy.
 
 \begin{figure}[H]
   \centering
-  \includegraphics[width=0.95\linewidth]{{Screenshot 2026-04-23 143141}.png}
-  \caption{Jenkins console log for Build~\#7 Post\,Actions stage --- confirms BUILD SUCCEEDED, followed by automated cleanup (\texttt{rm -rf venv} and \texttt{docker image prune}).}
-  \label{fig:console}
-\end{figure}
-
-\begin{figure}[H]
-  \centering
-  \includegraphics[width=0.95\linewidth]{{Screenshot 2026-04-23 142759}.png}
+  \myimage{0.95\linewidth}{{Screenshot 2026-04-23 142759}.png}
   \caption{Jenkins dashboard showing the \texttt{nids-pipeline} job: Last Success Build~\#7 (9\,min\,30\,sec ago), Last Failure Build~\#6 (18\,min ago), last build duration 5\,min\,8\,sec --- demonstrating a series of iterative builds culminating in a stable green pipeline.}
   \label{fig:history}
 \end{figure}
@@ -1585,9 +1627,9 @@ redeploy.
 
 \begin{figure}[H]
   \centering
-  \includegraphics[width=0.95\linewidth]{{Screenshot 2026-04-23 143049}.png}
+  \myimage{0.95\linewidth}{{Screenshot 2026-04-23 143049}.png}
   \caption{Jenkins Git Polling Log for the \texttt{nids-pipeline} job --- Poll SCM is configured to run every minute (\texttt{* * * * *}), detecting commits to the GitHub repository and auto-triggering builds on new pushes.}
-  \label{fig:docker-ps}
+  \label{fig:git-polling}
 \end{figure}
 
 % =============================================================================
@@ -1635,7 +1677,6 @@ the host NIC:
 \begin{lstlisting}[style=bashstyle]
 expose:
   - "6379"   # redis     -- intra-container only
-expose:
   - "9042"   # cassandra -- intra-container only
 \end{lstlisting}
 The Flask app communicates with Cassandra and Redis using Docker DNS names
@@ -1720,7 +1761,7 @@ makes the boundary explicit, testable, and fast.
 % =============================================================================
 
 \begin{enumerate}
-  \item Murtaza Baig, Jill Slay, et al.\ (2015).
+  \item Nour Moustafa and Jill Slay (2015).
         \textit{UNSW-NB15: A Comprehensive Dataset for Network Intrusion
         Detection Systems}.  Military Communications and Information Systems
         Conference (MilCIS), IEEE, Canberra.

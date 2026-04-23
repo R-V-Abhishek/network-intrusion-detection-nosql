@@ -1,0 +1,24 @@
+\addvspace {10\p@ }
+\addvspace {10\p@ }
+\contentsline {table}{\numberline {2.1}{\ignorespaces NoSQL vs.\ RDBMS comparison for the NIDS use case}}{7}{table.caption.5}%
+\addvspace {10\p@ }
+\contentsline {table}{\numberline {3.1}{\ignorespaces Column definitions for \texttt {nids.alerts}}}{9}{table.3.1}%
+\contentsline {table}{\numberline {3.2}{\ignorespaces Column definitions for \texttt {nids.sessions}}}{9}{table.caption.6}%
+\contentsline {table}{\numberline {3.3}{\ignorespaces Redis key patterns and data types}}{10}{table.caption.7}%
+\addvspace {10\p@ }
+\addvspace {10\p@ }
+\contentsline {table}{\numberline {5.1}{\ignorespaces Query efficiency analysis for core NIDS operations}}{18}{table.caption.10}%
+\addvspace {10\p@ }
+\contentsline {table}{\numberline {6.1}{\ignorespaces Machine learning model performance on the UNSW-NB15 test set}}{20}{table.caption.11}%
+\contentsline {table}{\numberline {6.2}{\ignorespaces Advantages demonstrated by Cassandra and Redis in the NIDS}}{22}{table.caption.16}%
+\addvspace {10\p@ }
+\addvspace {10\p@ }
+\contentsline {table}{\numberline {8.1}{\ignorespaces DevOps tools used in the NIDS CI/CD pipeline}}{26}{table.caption.17}%
+\addvspace {10\p@ }
+\contentsline {table}{\numberline {9.1}{\ignorespaces Jenkins Build \#7 stage-by-stage results (fully green)}}{31}{table.caption.20}%
+\addvspace {10\p@ }
+\contentsline {table}{\numberline {10.1}{\ignorespaces Services in the Docker Compose deployment stack}}{32}{table.caption.23}%
+\addvspace {10\p@ }
+\addvspace {10\p@ }
+\addvspace {10\p@ }
+\addvspace {10\p@ }

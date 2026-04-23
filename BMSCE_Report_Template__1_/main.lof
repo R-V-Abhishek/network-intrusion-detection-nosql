@@ -1,0 +1,28 @@
+\addvspace {10\p@ }
+\contentsline {figure}{\numberline {1.1}{\ignorespaces High-level system architecture of the Real-Time NIDS}}{4}{figure.caption.4}%
+\addvspace {10\p@ }
+\addvspace {10\p@ }
+\contentsline {figure}{\numberline {3.1}{\ignorespaces Cassandra and Redis data model for the NIDS project}}{11}{figure.caption.8}%
+\addvspace {10\p@ }
+\contentsline {figure}{\numberline {4.1}{\ignorespaces End-to-end data flow from CSV source to Flask dashboard}}{15}{figure.caption.9}%
+\addvspace {10\p@ }
+\addvspace {10\p@ }
+\contentsline {figure}{\numberline {6.1}{\ignorespaces NIDS Live Dashboard --- real-time severity doughnut chart (138 alerts: 38 high, 89 medium, 11 low), session info card, and live alert feed}}{20}{figure.caption.12}%
+\contentsline {figure}{\numberline {6.2}{\ignorespaces Alerts Page --- filterable and sortable table showing attack type, severity badge, confidence score, source and destination}}{21}{figure.caption.13}%
+\contentsline {figure}{\numberline {6.3}{\ignorespaces Analytics Page --- bar chart of attack-type distribution (Generic \textrightarrow {} Fuzzers \textrightarrow {} Exploits leading) and alert timeline}}{21}{figure.caption.14}%
+\contentsline {figure}{\numberline {6.4}{\ignorespaces Settings Page --- session management with two sessions listed, service health indicator showing storage CONNECTED}}{21}{figure.caption.15}%
+\addvspace {10\p@ }
+\addvspace {10\p@ }
+\contentsline {figure}{\numberline {8.1}{\ignorespaces Jenkins CI/CD pipeline flowchart for the NIDS project}}{27}{figure.caption.18}%
+\contentsline {figure}{\numberline {8.2}{\ignorespaces Jenkins Blue Ocean pipeline view for Build~\#7 --- all six stages green (Checkout \textrightarrow {} Install Dependencies \textrightarrow {} Lint \textrightarrow {} Test \textrightarrow {} Build Docker Image \textrightarrow {} Deploy), overall result: SUCCESS in 5\,min\,8\,sec}}{29}{figure.caption.19}%
+\addvspace {10\p@ }
+\contentsline {figure}{\numberline {9.1}{\ignorespaces Jenkins\texttt { nids-pipeline} status page --- Build~\#7 successful (green badge), build artefacts (\texttt {integration-results.xml}, \texttt {test-results.xml}), and Latest Test Result showing \textbf {no failures}. Right panel shows Test Result Trend and Code Coverage Trend graphs across builds \#1--\#7.}}{31}{figure.caption.21}%
+\contentsline {figure}{\numberline {9.2}{\ignorespaces Jenkins Build~\#7 detail page --- started by SCM change, took 5\,min\,8\,sec, Tests: no failures, Coverage: Line 57.50\% (+3.09\%), triggered by commit \textit {refactor: simplify app initialisation in app.py}.}}{31}{figure.caption.22}%
+\addvspace {10\p@ }
+\contentsline {figure}{\numberline {10.1}{\ignorespaces Jenkins console output for the Deploy stage --- \texttt {docker compose ps} confirms all four services (\texttt {nids\_app}, \texttt {nids\_cassandra}, \texttt {nids\_kafka}, \texttt {nids\_redis}) are Up and healthy. Final lines show ``Deployment successful! Dashboard: \url {http://localhost:5000}'' and BUILD SUCCEEDED.}}{33}{figure.caption.24}%
+\addvspace {10\p@ }
+\contentsline {figure}{\numberline {11.1}{\ignorespaces Jenkins dashboard showing the \texttt {nids-pipeline} job: Last Success Build~\#7 (9\,min\,30\,sec ago), Last Failure Build~\#6 (18\,min ago), last build duration 5\,min\,8\,sec --- demonstrating a series of iterative builds culminating in a stable green pipeline.}}{34}{figure.caption.25}%
+\contentsline {figure}{\numberline {11.2}{\ignorespaces Jenkins Git Polling Log for the \texttt {nids-pipeline} job --- Poll SCM is configured to run every minute (\texttt {* * * * *}), detecting commits to the GitHub repository and auto-triggering builds on new pushes.}}{34}{figure.caption.26}%
+\addvspace {10\p@ }
+\addvspace {10\p@ }
+\addvspace {10\p@ }
