@@ -144,9 +144,8 @@ PY
         stage('Clean Docker Environment') {
             steps {
                 sh '''
-                    docker stop $(docker ps -aq) 2>/dev/null || true
-                    docker rm -f $(docker ps -aq) 2>/dev/null || true
-                    docker system prune -af --volumes
+                    docker compose -p nids_ci_${BUILD_NUMBER} -f docker-compose.ci.yml down --remove-orphans || true
+                    docker image prune -f || true
                 '''
             }
         }
