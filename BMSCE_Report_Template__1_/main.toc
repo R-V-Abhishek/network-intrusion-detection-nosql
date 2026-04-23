@@ -1,0 +1,84 @@
+\contentsline {part}{A\hspace {1em}Next Gen Databases (NGD)}{6}{part.1}%
+\contentsline {chapter}{\numberline {1}Introduction}{7}{chapter.1}%
+\contentsline {section}{\numberline {1.1}Project Title}{7}{section.1.1}%
+\contentsline {section}{\numberline {1.2}Objective}{7}{section.1.2}%
+\contentsline {section}{\numberline {1.3}Problem Statement / Use Case}{7}{section.1.3}%
+\contentsline {subsection}{\numberline {1.3.1}Problem Statement}{7}{subsection.1.3.1}%
+\contentsline {subsection}{\numberline {1.3.2}Use Case}{8}{subsection.1.3.2}%
+\contentsline {chapter}{\numberline {2}Selection and Justification of NoSQL Database}{9}{chapter.2}%
+\contentsline {section}{\numberline {2.1}Types of NoSQL Databases Used}{9}{section.2.1}%
+\contentsline {section}{\numberline {2.2}Reason for Selection}{9}{section.2.2}%
+\contentsline {subsection}{\numberline {2.2.1}Apache Cassandra}{9}{subsection.2.2.1}%
+\contentsline {subsection}{\numberline {2.2.2}Redis}{9}{subsection.2.2.2}%
+\contentsline {section}{\numberline {2.3}Why It Suits the Use Case}{10}{section.2.3}%
+\contentsline {section}{\numberline {2.4}Brief Comparison with Relational Database}{10}{section.2.4}%
+\contentsline {chapter}{\numberline {3}Data Model and Schema Design}{11}{chapter.3}%
+\contentsline {section}{\numberline {3.1}Data Model Description}{11}{section.3.1}%
+\contentsline {subsection}{\numberline {3.1.1}Apache Cassandra -- Wide-Column Store}{11}{subsection.3.1.1}%
+\contentsline {subsection}{\numberline {3.1.2}Redis -- Key-Value Store}{11}{subsection.3.1.2}%
+\contentsline {section}{\numberline {3.2}Structure / Attributes}{11}{section.3.2}%
+\contentsline {subsection}{\numberline {3.2.1}Cassandra \texttt {nids.alerts} Table}{11}{subsection.3.2.1}%
+\contentsline {subsection}{\numberline {3.2.2}Cassandra \texttt {nids.sessions} Table}{12}{subsection.3.2.2}%
+\contentsline {subsection}{\numberline {3.2.3}Redis Key Patterns}{13}{subsection.3.2.3}%
+\contentsline {section}{\numberline {3.3}Relationships / Organisation}{13}{section.3.3}%
+\contentsline {section}{\numberline {3.4}Schema Diagram}{14}{section.3.4}%
+\contentsline {chapter}{\numberline {4}Implementation and Query Processing}{15}{chapter.4}%
+\contentsline {section}{\numberline {4.1}Structure Creation}{15}{section.4.1}%
+\contentsline {subsection}{\numberline {4.1.1}Creating the Keyspace}{15}{subsection.4.1.1}%
+\contentsline {subsection}{\numberline {4.1.2}Creating the Alerts Table}{15}{subsection.4.1.2}%
+\contentsline {subsection}{\numberline {4.1.3}Creating the Sessions Table}{16}{subsection.4.1.3}%
+\contentsline {section}{\numberline {4.2}Data Insertion and Update}{16}{section.4.2}%
+\contentsline {subsection}{\numberline {4.2.1}Inserting Alert Records into Cassandra}{16}{subsection.4.2.1}%
+\contentsline {subsection}{\numberline {4.2.2}Registering a New Session}{17}{subsection.4.2.2}%
+\contentsline {subsection}{\numberline {4.2.3}Caching Alerts in Redis}{17}{subsection.4.2.3}%
+\contentsline {subsection}{\numberline {4.2.4}Data Flow from Application to Database}{18}{subsection.4.2.4}%
+\contentsline {section}{\numberline {4.3}Data Retrieval and Query Execution}{18}{section.4.3}%
+\contentsline {subsection}{\numberline {4.3.1}Retrieve Latest Alerts by Session (Cassandra)}{18}{subsection.4.3.1}%
+\contentsline {subsection}{\numberline {4.3.2}Filter Alerts by Attack Type (Cassandra)}{19}{subsection.4.3.2}%
+\contentsline {subsection}{\numberline {4.3.3}List All Sessions (Cassandra)}{19}{subsection.4.3.3}%
+\contentsline {subsection}{\numberline {4.3.4}Delete a Session (Cassandra)}{19}{subsection.4.3.4}%
+\contentsline {subsection}{\numberline {4.3.5}Retrieve Recent Alerts from Redis (Live Feed)}{20}{subsection.4.3.5}%
+\contentsline {subsection}{\numberline {4.3.6}Retrieve Pre-Aggregated Statistics (Redis)}{20}{subsection.4.3.6}%
+\contentsline {chapter}{\numberline {5}Performance and Design Awareness}{21}{chapter.5}%
+\contentsline {section}{\numberline {5.1}Indexing}{21}{section.5.1}%
+\contentsline {subsection}{\numberline {5.1.1}Cassandra Primary Key as Built-In Index}{21}{subsection.5.1.1}%
+\contentsline {subsection}{\numberline {5.1.2}Redis List as Priority Queue}{21}{subsection.5.1.2}%
+\contentsline {section}{\numberline {5.2}Query Efficiency}{21}{section.5.2}%
+\contentsline {section}{\numberline {5.3}Scalability}{22}{section.5.3}%
+\contentsline {section}{\numberline {5.4}Optimisations Applied}{22}{section.5.4}%
+\contentsline {chapter}{\numberline {6}Results and Conclusion}{23}{chapter.6}%
+\contentsline {section}{\numberline {6.1}ML Model Performance}{23}{section.6.1}%
+\contentsline {section}{\numberline {6.2}Output Screenshots}{24}{section.6.2}%
+\contentsline {section}{\numberline {6.3}Key Observations}{25}{section.6.3}%
+\contentsline {section}{\numberline {6.4}Insights Gained}{26}{section.6.4}%
+\contentsline {section}{\numberline {6.5}Learning Outcomes}{26}{section.6.5}%
+\contentsline {section}{\numberline {6.6}Advantages of the Chosen NoSQL Databases}{27}{section.6.6}%
+\contentsline {part}{B\hspace {1em}DevOps Pipeline}{28}{part.2}%
+\contentsline {chapter}{\numberline {7}Introduction}{29}{chapter.7}%
+\contentsline {section}{\numberline {7.1}Objective of the Pipeline}{29}{section.7.1}%
+\contentsline {section}{\numberline {7.2}Application Used}{29}{section.7.2}%
+\contentsline {chapter}{\numberline {8}Pipeline Design and Workflow}{30}{chapter.8}%
+\contentsline {section}{\numberline {8.1}Tools Used}{30}{section.8.1}%
+\contentsline {section}{\numberline {8.2}Pipeline Stages}{30}{section.8.2}%
+\contentsline {section}{\numberline {8.3}Jenkinsfile Structure}{31}{section.8.3}%
+\contentsline {chapter}{\numberline {9}Continuous Integration (CI) Process}{34}{chapter.9}%
+\contentsline {section}{\numberline {9.1}How CI is Implemented}{34}{section.9.1}%
+\contentsline {section}{\numberline {9.2}Trigger Mechanism}{34}{section.9.2}%
+\contentsline {section}{\numberline {9.3}Build and Test Automation}{34}{section.9.3}%
+\contentsline {subsection}{\numberline {9.3.1}Test Design Philosophy}{34}{subsection.9.3.1}%
+\contentsline {subsection}{\numberline {9.3.2}Verified Build Result: Build \#8}{35}{subsection.9.3.2}%
+\contentsline {chapter}{\numberline {10}Continuous Deployment (CD) Process}{37}{chapter.10}%
+\contentsline {section}{\numberline {10.1}Deployment Steps}{37}{section.10.1}%
+\contentsline {section}{\numberline {10.2}Deployment Environment}{37}{section.10.2}%
+\contentsline {section}{\numberline {10.3}Level of Automation}{38}{section.10.3}%
+\contentsline {chapter}{\numberline {11}Execution and Output Demonstration}{39}{chapter.11}%
+\contentsline {section}{\numberline {11.1}Build and Test Output}{39}{section.11.1}%
+\contentsline {section}{\numberline {11.2}Deployment Output}{41}{section.11.2}%
+\contentsline {chapter}{\numberline {12}Challenges and Solutions}{42}{chapter.12}%
+\contentsline {section}{\numberline {12.1}Challenge 1 -- Deploy Stage Silently Skipped}{42}{section.12.1}%
+\contentsline {section}{\numberline {12.2}Challenge 2 -- Windows Port-Binding Blocked by Firewall}{42}{section.12.2}%
+\contentsline {section}{\numberline {12.3}Challenge 3 -- Tests Required Live Infrastructure}{43}{section.12.3}%
+\contentsline {chapter}{\numberline {13}Conclusion}{44}{chapter.13}%
+\contentsline {section}{\numberline {13.1}Learnings from the DevOps Pipeline}{44}{section.13.1}%
+\contentsline {section}{\numberline {13.2}Importance of CI/CD}{44}{section.13.2}%
+\contentsline {chapter}{\numberline {14}References}{45}{chapter.14}%
