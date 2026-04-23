@@ -87,6 +87,9 @@ def create_app() -> Flask:
     return app
 
 
+app = create_app()
+
+
 if __name__ == "__main__":
     debug_mode = os.getenv("DASHBOARD_DEBUG", "false").lower() in ("1", "true", "yes")
-    create_app().run(host="0.0.0.0", port=5000, debug=debug_mode, use_reloader=False)
+    app.run(host="0.0.0.0", port=5000, debug=debug_mode, use_reloader=False)
