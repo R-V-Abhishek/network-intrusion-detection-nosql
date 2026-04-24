@@ -1,5 +1,5 @@
 \addvspace {10\p@ }
-\contentsline {figure}{\numberline {1.1}{\ignorespaces High-level system architecture of the Real-Time NIDS}}{4}{figure.caption.4}%
+\contentsline {figure}{\numberline {1.1}{\ignorespaces High-level system architecture of the Real-Time NIDS}}{5}{figure.caption.4}%
 \addvspace {10\p@ }
 \addvspace {10\p@ }
 \contentsline {figure}{\numberline {3.1}{\ignorespaces Cassandra and Redis data model for the NIDS project}}{11}{figure.caption.8}%
@@ -7,7 +7,7 @@
 \contentsline {figure}{\numberline {4.1}{\ignorespaces End-to-end data flow from CSV source to Flask dashboard}}{15}{figure.caption.9}%
 \addvspace {10\p@ }
 \addvspace {10\p@ }
-\contentsline {figure}{\numberline {6.1}{\ignorespaces NIDS Live Dashboard --- real-time severity doughnut chart (138 alerts: 38 high, 89 medium, 11 low), session info card, and live alert feed}}{20}{figure.caption.12}%
+\contentsline {figure}{\numberline {6.1}{\ignorespaces NIDS Live Dashboard --- real-time severity doughnut chart (138 alerts: 38 high, 89 medium, 11 low), session info card, and live alert feed}}{21}{figure.caption.12}%
 \contentsline {figure}{\numberline {6.2}{\ignorespaces Alerts Page --- filterable and sortable table showing attack type, severity badge, confidence score, source and destination}}{21}{figure.caption.13}%
 \contentsline {figure}{\numberline {6.3}{\ignorespaces Analytics Page --- bar chart of attack-type distribution (Generic \textrightarrow {} Fuzzers \textrightarrow {} Exploits leading) and alert timeline}}{21}{figure.caption.14}%
 \contentsline {figure}{\numberline {6.4}{\ignorespaces Settings Page --- session management with two sessions listed, service health indicator showing storage CONNECTED}}{21}{figure.caption.15}%
