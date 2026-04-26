@@ -12,6 +12,7 @@
  top=20mm,
  bottom=20mm,
 }
+\setlength{\footskip}{14mm}
 
 % ------ Colours --------------------------------------------------------------
 \usepackage[table]{xcolor}
@@ -120,16 +121,16 @@
 \titlespacing*{\chapter}{0pt}{18pt}{24pt}
 
 \titleformat{\section}
-  {\normalfont\centering\Large\bfseries}
+  {\normalfont\Large\bfseries}
   {\thesection}{1em}{}
 \titlespacing*{\section}{0pt}{*2.5}{*1.5}
 
 \titleformat{\subsection}
-  {\normalfont\Large\bfseries}{\thesubsection}{1em}{}
+  {\normalfont\large\bfseries}{\thesubsection}{1em}{}
 \titlespacing*{\subsection}{0pt}{*1.5}{*1}
 
 \titleformat{\subsubsection}
-  {\normalfont\large\bfseries}{\thesubsubsection}{1em}{}
+  {\normalfont\normalsize\bfseries}{\thesubsubsection}{1em}{}
 \titlespacing*{\subsubsection}{0pt}{*1}{*0.5}
 
 % ------ Page style (Cloud style) ---------------------------------------------
@@ -141,10 +142,9 @@
 }
 \fancypagestyle{chapterstyle}{%
   \fancyhf{}
-  \fancyhead[C]{\leftmark}
   \fancyfoot[C]{\thepage}
-  \renewcommand{\headrulewidth}{0.4pt}
-  \renewcommand{\footrulewidth}{0.4pt}
+  \renewcommand{\headrulewidth}{0pt}
+  \renewcommand{\footrulewidth}{0pt}
 }
 
 \newif\ifshowimages
@@ -172,11 +172,10 @@
     \label{#3}%
   \end{figure}%
 }
-
 % =============================================================================
 \begin{document}
 \linespread{1.39}\selectfont
-\pagestyle{chapterstyle}
+\pagestyle{plain}
 \onehalfspacing
 \pagenumbering{gobble}
 % =============================================================================
@@ -1560,20 +1559,21 @@ docker compose ps              # print live container status to console log
 
 \begin{table}[H]
   \centering
+  \small
   \caption{Services in the Docker Compose deployment stack}
   \label{tab:services}
   \rowcolors{2}{blue!4}{white}
-  \begin{tabular}{lllp{4.2cm}}
+  \begin{tabularx}{\textwidth}{>{\raggedright\arraybackslash}p{1.7cm} >{\raggedright\arraybackslash}p{4.2cm} >{\raggedright\arraybackslash}p{2.7cm} >{\raggedright\arraybackslash}X}
     \toprule
     \textbf{Service}   & \textbf{Docker Image}               & \textbf{Port}  & \textbf{Role} \\
     \midrule
     \texttt{app}       & Custom (Dockerfile)                 & 5000:5000      & Flask NIDS dashboard + REST API \\
     \texttt{redis}     & \texttt{redis:7-alpine}             & internal 6379  & Alert cache; pub/sub broker \\
     \texttt{cassandra} & \texttt{cassandra:4.1}              & internal 9042  & Persistent alert store \\
-    \texttt{kafka}     & \texttt{confluentinc/cp-kafka:7.5.0} & 19092 (ext),
+    \texttt{kafka}     & \nolinkurl{confluentinc/cp-kafka:7.5.0} & 19092 (ext),
       internal 9092 & Streaming broker (KRaft, no ZooKeeper) \\
     \bottomrule
-  \end{tabular}
+  \end{tabularx}
 \end{table}
 
 All services share the internal \texttt{nids\_net} bridge network.
