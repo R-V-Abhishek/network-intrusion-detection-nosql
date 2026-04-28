@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import subprocess
 
 from flask import Flask, jsonify, render_template, request
 
@@ -45,7 +46,16 @@ def create_app() -> Flask:
 
     @app.get("/api/health")
     def api_health():
-        return jsonify({"status": "ok", "services": {"storage": "connected"}})
+        try:
+            commit = subprocess.check_output(
+                ["git", "rev-parse", "--short", "HEAD"],
+                stderr=subprocess.DEVNULL,
+            ).decode().strip()
+        except Exception:
+            commit = "unknown"
+        return jsonify(
+            {"status": "ok", "commit": commit, "services": {"storage": "connected"}}
+        )
 
     @app.get("/api/sessions")
     def api_sessions():

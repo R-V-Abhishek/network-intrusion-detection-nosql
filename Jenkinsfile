@@ -173,15 +173,28 @@ PY
             when {
                 expression { env.GIT_BRANCH == 'origin/master' }
             }
+            environment {
+                EC2_KEY = credentials('ec2-ssh-key')
+            }
             steps {
                 sh '''
-                    docker compose -f docker-compose.yml up -d --build --wait
-                    docker compose -f docker-compose.yml ps
+                    chmod 400 $EC2_KEY
+                    ssh -o StrictHostKeyChecking=no -i $EC2_KEY ec2-user@52.66.67.1 << 'EOF'
+                        set -e
+                        cd ~/nids-app
+                        git pull
+                        DOCKER_BUILDKIT=0 docker compose -f docker-compose.deploy.yml down --remove-orphans
+                        DOCKER_BUILDKIT=0 docker compose -f docker-compose.deploy.yml up -d --build
+                        docker image prune -f
+                        docker ps
+EOF
                 '''
             }
             post {
-                success { echo "Deployment successful! Dashboard: http://localhost:5000" }
-                failure { sh 'docker compose -f docker-compose.yml logs --tail=50' }
+                success { echo "Deployment successful! Dashboard: http://52.66.67.1" }
+                failure {
+                    sh "ssh -o StrictHostKeyChecking=no -i $EC2_KEY ec2-user@52.66.67.1 'docker logs nids_app --tail 50' || true"
+                }
             }
         }
     }
