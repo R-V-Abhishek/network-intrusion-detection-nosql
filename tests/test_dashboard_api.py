@@ -43,8 +43,11 @@ def test_api_health(monkeypatch):
     client, storage = _make_client(monkeypatch)
     response = client.get("/api/health")
 
+    payload = response.get_json()
     assert response.status_code == 200
-    assert response.get_json() == {"status": "ok", "services": {"storage": "connected"}}
+    assert payload["status"] == "ok"
+    assert payload["services"] == {"storage": "connected"}
+    assert isinstance(payload["commit"], str)
     assert storage.connected is True
 
 
