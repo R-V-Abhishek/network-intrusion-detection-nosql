@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-APP_DIR="${APP_DIR:-$HOME/nids-app}"
+APP_DIR="${APP_DIR:-$HOME/ngd-app}"
 REPO_URL="${REPO_URL:-}"
 
 if [ -z "$REPO_URL" ]; then

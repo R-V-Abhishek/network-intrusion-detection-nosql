@@ -181,7 +181,7 @@ PY
                     chmod 400 $EC2_KEY
                     ssh -o StrictHostKeyChecking=no -i $EC2_KEY ec2-user@52.66.67.1 << 'EOF'
                         set -e
-                        cd ~/nids-app
+                        cd ~/ngd-app
                         git pull
                         DOCKER_BUILDKIT=0 docker compose -f docker-compose.deploy.yml down --remove-orphans
                         DOCKER_BUILDKIT=0 docker compose -f docker-compose.deploy.yml up -d --build
