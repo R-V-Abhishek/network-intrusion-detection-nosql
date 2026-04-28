@@ -1,5 +1,6 @@
 <!doctype html>
 <html lang="en">
+
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -9,7 +10,7 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
   <style>
     :root {
-      --bg: #0f1117;
+      --bg: #2f5024;
       --bg2: #161923;
       --text: #e2e8f0;
       --muted: #8892a4;
@@ -28,18 +29,26 @@
       --info-bg: rgba(56, 189, 248, 0.12);
       --radius: 12px;
     }
-    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
     body {
       font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
       color: var(--text);
       background: var(--bg);
       min-height: 100vh;
     }
+
     .layout {
       display: grid;
       grid-template-columns: 240px 1fr;
       min-height: 100vh;
     }
+
     nav {
       background: var(--bg2);
       border-right: 1px solid var(--line);
@@ -51,6 +60,7 @@
       top: 0;
       height: 100vh;
     }
+
     .nav-brand {
       display: flex;
       align-items: center;
@@ -58,45 +68,77 @@
       margin-bottom: 28px;
       padding: 0 10px;
     }
+
     .nav-brand .logo {
-      width: 32px; height: 32px;
+      width: 32px;
+      height: 32px;
       background: linear-gradient(135deg, var(--accent), #a78bfa);
       border-radius: 8px;
-      display: flex; align-items: center; justify-content: center;
-      font-weight: 800; font-size: 14px; color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+      font-size: 14px;
+      color: #fff;
     }
+
     .nav-brand h1 {
-      font-size: 18px; font-weight: 700; letter-spacing: -0.02em;
+      font-size: 18px;
+      font-weight: 700;
+      letter-spacing: -0.02em;
     }
+
     nav a {
-      display: flex; align-items: center; gap: 10px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
       padding: 10px 12px;
       text-decoration: none;
       color: var(--muted);
       border-radius: 10px;
-      font-size: 14px; font-weight: 500;
+      font-size: 14px;
+      font-weight: 500;
       transition: all 0.15s ease;
     }
-    nav a:hover { background: var(--card); color: var(--text); }
+
+    nav a:hover {
+      background: var(--card);
+      color: var(--text);
+    }
+
     nav a.active {
       background: var(--accent-glow);
       color: var(--accent);
       font-weight: 600;
     }
-    nav a .icon { font-size: 18px; width: 22px; text-align: center; }
+
+    nav a .icon {
+      font-size: 18px;
+      width: 22px;
+      text-align: center;
+    }
+
     main {
       padding: 28px 32px;
       max-width: 1400px;
     }
+
     .page-header {
       margin-bottom: 24px;
     }
+
     .page-header h2 {
-      font-size: 24px; font-weight: 700; letter-spacing: -0.02em;
+      font-size: 24px;
+      font-weight: 700;
+      letter-spacing: -0.02em;
     }
+
     .page-header p {
-      color: var(--muted); font-size: 14px; margin-top: 4px;
+      color: var(--muted);
+      font-size: 14px;
+      margin-top: 4px;
     }
+
     .card {
       background: var(--card);
       border: 1px solid var(--line);
@@ -105,21 +147,33 @@
       margin-bottom: 16px;
       transition: border-color 0.2s;
     }
-    .card:hover { border-color: #3a3f52; }
-    .card h3 {
-      font-size: 15px; font-weight: 600; margin-bottom: 14px; color: var(--muted);
-      text-transform: uppercase; letter-spacing: 0.04em;
+
+    .card:hover {
+      border-color: #3a3f52;
     }
+
+    .card h3 {
+      font-size: 15px;
+      font-weight: 600;
+      margin-bottom: 14px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
     table {
       width: 100%;
       border-collapse: collapse;
     }
-    th, td {
+
+    th,
+    td {
       text-align: left;
       padding: 10px 12px;
       border-bottom: 1px solid var(--line);
       font-size: 13px;
     }
+
     th {
       color: var(--muted);
       font-weight: 600;
@@ -127,12 +181,18 @@
       text-transform: uppercase;
       letter-spacing: 0.05em;
     }
-    .muted { color: var(--muted); font-size: 13px; }
+
+    .muted {
+      color: var(--muted);
+      font-size: 13px;
+    }
+
     .row {
       display: flex;
       gap: 12px;
       flex-wrap: wrap;
     }
+
     .pill {
       display: inline-block;
       padding: 3px 10px;
@@ -142,18 +202,45 @@
       text-transform: uppercase;
       letter-spacing: 0.03em;
     }
-    .pill.high { background: var(--danger-bg); color: var(--danger); }
-    .pill.medium { background: var(--warn-bg); color: var(--warn); }
-    .pill.low { background: var(--ok-bg); color: var(--ok); }
-    .pill.info { background: var(--info-bg); color: var(--info); }
+
+    .pill.high {
+      background: var(--danger-bg);
+      color: var(--danger);
+    }
+
+    .pill.medium {
+      background: var(--warn-bg);
+      color: var(--warn);
+    }
+
+    .pill.low {
+      background: var(--ok-bg);
+      color: var(--ok);
+    }
+
+    .pill.info {
+      background: var(--info-bg);
+      color: var(--info);
+    }
+
     .stat-value {
-      font-size: 32px; font-weight: 800; letter-spacing: -0.03em;
+      font-size: 32px;
+      font-weight: 800;
+      letter-spacing: -0.03em;
     }
+
     .stat-label {
-      font-size: 12px; color: var(--muted); font-weight: 500;
-      text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px;
+      font-size: 12px;
+      color: var(--muted);
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 4px;
     }
-    button, select, input {
+
+    button,
+    select,
+    input {
       font-family: inherit;
       font-size: 13px;
       padding: 8px 14px;
@@ -164,40 +251,92 @@
       cursor: pointer;
       transition: border-color 0.15s;
     }
-    button:hover, select:hover { border-color: var(--accent); }
+
+    button:hover,
+    select:hover {
+      border-color: var(--accent);
+    }
+
     button.primary {
       background: var(--accent);
       border-color: var(--accent);
       color: #fff;
       font-weight: 600;
     }
+
     button.danger {
       background: var(--danger-bg);
       border-color: var(--danger);
       color: var(--danger);
     }
-    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-    .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
-    .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
-    @media (max-width: 1100px) {
-      .grid-4 { grid-template-columns: 1fr 1fr; }
+
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
     }
+
+    .grid-3 {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 12px;
+    }
+
+    .grid-4 {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+    }
+
+    @media (max-width: 1100px) {
+      .grid-4 {
+        grid-template-columns: 1fr 1fr;
+      }
+    }
+
     @media (max-width: 900px) {
-      .layout { grid-template-columns: 1fr; }
+      .layout {
+        grid-template-columns: 1fr;
+      }
+
       nav {
-        position: static; height: auto;
-        flex-direction: row; overflow-x: auto;
-        border-right: 0; border-bottom: 1px solid var(--line);
+        position: static;
+        height: auto;
+        flex-direction: row;
+        overflow-x: auto;
+        border-right: 0;
+        border-bottom: 1px solid var(--line);
         padding: 12px;
       }
-      .nav-brand { margin-bottom: 0; }
-      .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr; }
+
+      .nav-brand {
+        margin-bottom: 0;
+      }
+
+      .grid-2,
+      .grid-3,
+      .grid-4 {
+        grid-template-columns: 1fr;
+      }
     }
-    .sortable { cursor: pointer; user-select: none; }
-    .sortable:hover { color: var(--accent); }
-    .sortable::after { content: ' ↕'; font-size: 10px; opacity: 0.5; }
+
+    .sortable {
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .sortable:hover {
+      color: var(--accent);
+    }
+
+    .sortable::after {
+      content: ' ↕';
+      font-size: 10px;
+      opacity: 0.5;
+    }
   </style>
 </head>
+
 <body>
   <div class="layout">
     <nav>
@@ -217,9 +356,10 @@
   <script>
     // Highlight active nav link
     const path = location.pathname;
-    const navMap = {'/': 'nav-dashboard', '/alerts': 'nav-alerts', '/analytics': 'nav-analytics', '/settings': 'nav-settings'};
+    const navMap = { '/': 'nav-dashboard', '/alerts': 'nav-alerts', '/analytics': 'nav-analytics', '/settings': 'nav-settings' };
     const activeId = navMap[path];
     if (activeId) document.getElementById(activeId)?.classList.add('active');
   </script>
 </body>
+
 </html>
