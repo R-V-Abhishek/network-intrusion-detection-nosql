@@ -1,12 +1,13 @@
 /*
  * Jenkinsfile — Declarative Pipeline for NIDS DevOps Demo
  *
- *  1. Checkout  — pull latest code
- *  2. Install   — pip install into venv
- *  3. Quality   — lint (flake8) + unit tests (pytest) in parallel
- *  4. Integration Tests — spin up CI compose stack, run integration suite
- *  5. Build     — docker build local image
- *  6. Deploy    — docker compose up full stack (master only)
+ *  1. Checkout         — pull latest code
+ *  2. Install          — pip install (cached)
+ *  3. Quality          — lint (flake8) + unit tests (pytest) in parallel
+ *  4. Integration Tests— spin up CI compose stack, run integration suite
+ *  5. Build            — docker build + tag
+ *  6. Deploy           — docker compose up on EC2 (master only)
+ *  7. Health Check     — smoke test deployed endpoint
  */
 
 pipeline {
@@ -15,6 +16,7 @@ pipeline {
 
     options {
         buildDiscarder(logRotator(numToKeepStr: '10', artifactNumToKeepStr: '3'))
+        timeout(time: 30, unit: 'MINUTES')
     }
 
     environment {
@@ -30,17 +32,17 @@ pipeline {
 
         stage('Checkout') {
             steps {
-                deleteDir()
                 checkout scm
             }
         }
 
         stage('Install Dependencies') {
+            options { timeout(time: 5, unit: 'MINUTES') }
             steps {
                 sh '''
                     python3 -m venv venv
-                    venv/bin/pip install --upgrade pip
-                    venv/bin/pip install -r requirements.txt
+                    venv/bin/pip install --upgrade pip --cache-dir /tmp/pip-cache
+                    venv/bin/pip install -r requirements.txt --cache-dir /tmp/pip-cache
                 '''
             }
         }
@@ -48,6 +50,7 @@ pipeline {
         stage('Quality') {
             parallel {
                 stage('Lint') {
+                    options { timeout(time: 5, unit: 'MINUTES') }
                     steps {
                         sh '''
                             venv/bin/flake8 config/ src/ streaming/ dashboard/ tests/ \
@@ -62,6 +65,7 @@ pipeline {
                 }
 
                 stage('Unit Tests + Coverage') {
+                    options { timeout(time: 10, unit: 'MINUTES') }
                     steps {
                         sh '''
                             venv/bin/pytest tests/ \
@@ -84,51 +88,19 @@ pipeline {
         }
 
         stage('Integration Tests') {
+            options { timeout(time: 10, unit: 'MINUTES') }
             steps {
                 sh '''
-                    docker compose -f docker-compose.ci.yml down --remove-orphans || true
-                    docker rm -f nids_redis_ci || true
+                    docker compose -p nids_ci_${BUILD_NUMBER} -f docker-compose.ci.yml down --remove-orphans || true
                     docker compose -p nids_ci_${BUILD_NUMBER} -f docker-compose.ci.yml up -d --build --wait
-                    docker compose -p nids_ci_${BUILD_NUMBER} -f docker-compose.ci.yml ps
 
-                    REDIS_TEST_HOST=$(venv/bin/python - <<'PY'
-import socket, subprocess, sys, time
+                    echo "Waiting for Redis..."
+                    for i in $(seq 1 30); do
+                        docker compose -p nids_ci_${BUILD_NUMBER} -f docker-compose.ci.yml exec -T redis-ci redis-cli ping && break
+                        sleep 2
+                    done
 
-port = 6380
-candidates = ["localhost", "127.0.0.1", "host.docker.internal", "redis-ci", "redis"]
-
-try:
-    gw = subprocess.check_output("ip route | awk '/default/ {print $3; exit}'", shell=True, text=True).strip()
-    if gw:
-        candidates.append(gw)
-except Exception:
-    pass
-
-seen = []
-for h in candidates:
-    if h and h not in seen:
-        seen.append(h)
-
-deadline = time.time() + 60
-while time.time() < deadline:
-    for h in seen:
-        try:
-            with socket.create_connection((h, port), timeout=2) as s:
-                s.sendall(b"*1\\r\\n$4\\r\\nPING\\r\\n")
-                if s.recv(16).startswith(b"+PONG"):
-                    print(h); sys.exit(0)
-        except OSError:
-            continue
-    time.sleep(2)
-sys.exit(1)
-PY
-                    ) || {
-                        echo "Redis on port 6380 not reachable"
-                        docker compose -p nids_ci_${BUILD_NUMBER} -f docker-compose.ci.yml logs --tail=80 redis-ci || true
-                        exit 1
-                    }
-
-                    REDIS_HOST=${REDIS_TEST_HOST} REDIS_PORT=6380 NIDS_DISABLE_CASSANDRA=1 NIDS_RUN_INTEGRATION=1 \
+                    REDIS_HOST=localhost REDIS_PORT=6380 NIDS_DISABLE_CASSANDRA=1 NIDS_RUN_INTEGRATION=1 \
                         venv/bin/pytest tests/ -m integration --junitxml=integration-results.xml
                 '''
             }
@@ -136,35 +108,16 @@ PY
                 always {
                     sh 'docker compose -p nids_ci_${BUILD_NUMBER} -f docker-compose.ci.yml down --remove-orphans || true'
                     junit allowEmptyResults: true, testResults: 'integration-results.xml'
-                    archiveArtifacts artifacts: 'integration-results.xml', fingerprint: true
+                    archiveArtifacts artifacts: 'integration-results.xml', allowEmptyArchive: true, fingerprint: true
                 }
             }
         }
 
-        stage('Clean Docker Environment') {
-            steps {
-                sh '''
-                    docker compose -p nids_ci_${BUILD_NUMBER} -f docker-compose.ci.yml down --remove-orphans || true
-                    docker image prune -f || true
-                '''
-            }
-        }
-
-        stage('Verify Workspace') {
-            steps {
-                sh '''
-                    pwd
-                    ls -la
-                    ls -la src
-                '''
-            }
-        }
-
         stage('Build Docker Image') {
+            options { timeout(time: 10, unit: 'MINUTES') }
             steps {
                 sh '''
-                    pwd
-                    docker build --no-cache -t nids-pipeline-app .
+                    docker build -t ${IMAGE_NAME}:${IMAGE_TAG} -t ${IMAGE_NAME}:latest .
                 '''
             }
         }
@@ -173,13 +126,14 @@ PY
             when {
                 expression { env.GIT_BRANCH == 'origin/master' }
             }
+            options { timeout(time: 10, unit: 'MINUTES') }
             environment {
                 EC2_KEY = credentials('ec2-ssh-key')
             }
             steps {
                 sh '''
                     chmod 400 $EC2_KEY
-                    ssh -o StrictHostKeyChecking=no -i $EC2_KEY ec2-user@52.66.67.1 << 'EOF'
+                    ssh -o StrictHostKeyChecking=no -i $EC2_KEY ec2-user@52.66.67.1 bash -s << 'ENDSSH'
                         set -e
                         cd ~/ngd-app
                         git pull
@@ -187,14 +141,40 @@ PY
                         DOCKER_BUILDKIT=0 docker compose -f docker-compose.deploy.yml up -d --build
                         docker image prune -f
                         docker ps
-EOF
+ENDSSH
                 '''
             }
             post {
-                success { echo "Deployment successful! Dashboard: http://52.66.67.1" }
                 failure {
                     sh "ssh -o StrictHostKeyChecking=no -i $EC2_KEY ec2-user@52.66.67.1 'docker logs nids_app --tail 50' || true"
                 }
+            }
+        }
+
+        stage('Health Check') {
+            when {
+                expression { env.GIT_BRANCH == 'origin/master' }
+            }
+            options { timeout(time: 3, unit: 'MINUTES') }
+            steps {
+                sh '''
+                    echo "Waiting for app to be ready..."
+                    for i in $(seq 1 15); do
+                        STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://52.66.67.1 || true)
+                        if [ "$STATUS" = "200" ]; then
+                            echo "Health check passed! HTTP $STATUS"
+                            exit 0
+                        fi
+                        echo "Attempt $i: HTTP $STATUS — retrying in 10s..."
+                        sleep 10
+                    done
+                    echo "Health check FAILED after all retries"
+                    exit 1
+                '''
+            }
+            post {
+                success { echo "Deployment verified: http://52.66.67.1 is live." }
+                failure  { echo "App not reachable post-deploy — check container logs." }
             }
         }
     }
@@ -203,18 +183,18 @@ EOF
         always {
             echo "Pipeline finished. Build #${BUILD_NUMBER} on branch ${env.BRANCH_NAME}"
         }
-        failure { echo "BUILD FAILED" }
         success { echo "BUILD SUCCEEDED" }
+        failure  { echo "BUILD FAILED" }
         cleanup {
-            sh 'rm -rf venv'
             sh '''
                 docker image ls --format '{{.Repository}}:{{.Tag}} {{.ID}}' \
-                    | grep '^nids-app:' \
+                    | grep "^${IMAGE_NAME}:" \
                     | awk '{print $2}' \
                     | sort -u \
                     | xargs -r docker image rm -f || true
                 docker image prune -f || true
             '''
+            cleanWs()
         }
     }
 }
