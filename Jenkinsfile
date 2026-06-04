@@ -2,26 +2,23 @@
  * Jenkinsfile — NIDS DevOps Pipeline
  *
  * Runs ON your local Windows machine (Jenkins installed locally).
- * Deploys TO EC2 via SSH — simple git pull + docker compose restart.
- *
- * Architecture:
- *   Local Jenkins → lint + test → SSH EC2 → git pull → docker compose up
- *   Local machine → sync_push.py → POST /api/ingest → EC2 Redis → Dashboard
+ * Deploys TO EC2 via SSH — git pull + docker compose restart.
  *
  * Stages:
- *   1. Checkout        — pull latest code from GitHub
- *   2. Quality (parallel)
- *      a. Lint         — flake8
- *      b. Unit Tests   — pytest (no Docker needed)
- *   3. Integration     — spin up Redis via docker-compose.ci.yml, run integration suite
- *   4. Deploy to EC2   — SSH in, git pull, docker compose restart (master branch only)
- *   5. Health Check    — curl EC2 /api/health to confirm deployment worked
- *   6. Rollback        — revert if health check fails
+ *   1. Checkout          — pull latest code from GitHub
+ *   2. Install           — create venv + pip install (cached)
+ *   3. Quality (parallel)
+ *      a. Lint           — flake8
+ *      b. Unit Tests     — pytest (no Docker needed)
+ *   4. Integration Tests — Redis CI container + integration suite
+ *   5. Deploy to EC2     — SSH → git pull → docker compose up (master only)
+ *   6. Health Check      — curl EC2 /api/health (master only)
+ *   7. Rollback          — revert container if health check fails
  *
- * Jenkins Credentials needed (Manage Jenkins → Credentials → Global):
- *   ec2-host         Secret text  → EC2 public IP (e.g. 52.66.67.1)
- *   ec2-ssh-key      SSH Username with Private Key → username: ubuntu, key: .pem contents
- *   ec2-ingest-token Secret text  → devops-demo (must match INGEST_TOKEN on EC2)
+ * Jenkins Credentials required (Manage Jenkins → Credentials → Global):
+ *   ec2-host          Secret text                → your EC2 public IP
+ *   ec2-ssh-key       SSH Username+Private Key   → username: ubuntu, key: .pem contents
+ *   ec2-ingest-token  Secret text                → devops-demo
  */
 
 pipeline {
@@ -30,34 +27,23 @@ pipeline {
 
     options {
         buildDiscarder(logRotator(numToKeepStr: '10'))
-        timeout(time: 20, unit: 'MINUTES')
+        timeout(time: 30, unit: 'MINUTES')
         disableConcurrentBuilds()
     }
 
     triggers {
-        // Polls GitHub every 5 min — also set up GitHub webhook for instant trigger
         pollSCM('H/5 * * * *')
     }
 
     environment {
-        // Injected from Jenkins credential store — never hardcoded
         EC2_HOST     = credentials('ec2-host')
         EC2_KEY      = credentials('ec2-ssh-key')
         INGEST_TOKEN = credentials('ec2-ingest-token')
-
-        // Test environment — uses local Redis via docker-compose.ci.yml
-        REDIS_HOST             = "localhost"
-        REDIS_PORT             = "6380"
-        NIDS_DISABLE_CASSANDRA = "1"
-        PYTHONPATH             = "."
-
-        // Use bundled JDK 17 for PySpark in tests (only needed if running pipeline tests)
-        JAVA_HOME = "${WORKSPACE}\\tools\\jdk-17.0.12"
     }
 
     stages {
 
-        // ── Stage 1: Checkout ─────────────────────────────────────────────────
+        // ── 1. Checkout ───────────────────────────────────────────────────────
         stage('Checkout') {
             steps {
                 deleteDir()
@@ -66,26 +52,42 @@ pipeline {
             }
         }
 
-        // ── Stage 2: Quality (Lint + Unit Tests in parallel) ──────────────────
+        // ── 2. Install Dependencies ───────────────────────────────────────────
+        // Always create a fresh venv — venv/ is gitignored so never in workspace.
+        // tools/ (JDK) is also gitignored; unit tests don't need PySpark so that's fine.
+        stage('Install Dependencies') {
+            options { timeout(time: 10, unit: 'MINUTES') }
+            steps {
+                bat '''
+                    python -m venv venv
+                    venv\\Scripts\\python.exe -m pip install --upgrade pip --quiet
+                    venv\\Scripts\\python.exe -m pip install -r requirements.txt --quiet
+                '''
+            }
+        }
+
+        // ── 3. Quality: Lint + Unit Tests (parallel) ──────────────────────────
         stage('Quality') {
             parallel {
 
                 stage('Lint') {
+                    options { timeout(time: 5, unit: 'MINUTES') }
                     steps {
                         bat '''
-                            venv\\Scripts\\flake8.exe ^
-                                config/ src/ streaming/ dashboard/ tests/ sync_push.py ^
+                            venv\\Scripts\\flake8.exe config/ src/ streaming/ dashboard/ tests/ sync_push.py ^
                                 --max-line-length=110 ^
                                 --exclude=venv ^
                                 --count
                         '''
                     }
                     post {
-                        failure { echo 'Lint FAILED — fix code style before deploy.' }
+                        failure { echo 'Lint FAILED — fix code style issues before deploy.' }
+                        success { echo 'Lint passed.' }
                     }
                 }
 
                 stage('Unit Tests') {
+                    options { timeout(time: 10, unit: 'MINUTES') }
                     steps {
                         bat '''
                             set NIDS_DISABLE_CASSANDRA=1
@@ -104,19 +106,19 @@ pipeline {
                             publishCoverage adapters: [coberturaAdapter('coverage.xml')]
                         }
                         failure { echo 'Unit tests FAILED — deployment blocked.' }
+                        success { echo 'All unit tests passed.' }
                     }
                 }
             }
         }
 
-        // ── Stage 3: Integration Tests ────────────────────────────────────────
+        // ── 4. Integration Tests ──────────────────────────────────────────────
+        // Spins up a Redis container on port 6380 for integration tests.
         stage('Integration Tests') {
-            options { timeout(time: 5, unit: 'MINUTES') }
+            options { timeout(time: 10, unit: 'MINUTES') }
             steps {
-                bat '''
-                    docker compose -f docker-compose.ci.yml down --remove-orphans 2>nul || echo "nothing to stop"
-                    docker compose -f docker-compose.ci.yml up -d --wait
-                '''
+                bat 'docker compose -f docker-compose.ci.yml down --remove-orphans 2>nul || echo nothing to stop'
+                bat 'docker compose -f docker-compose.ci.yml up -d --wait'
                 bat '''
                     set REDIS_HOST=localhost
                     set REDIS_PORT=6380
@@ -136,10 +138,9 @@ pipeline {
             }
         }
 
-        // ── Stage 4: Deploy to EC2 ────────────────────────────────────────────
-        // Only runs on master branch after all tests pass.
-        // SSH into EC2 → git pull → docker compose restart.
-        // EC2 builds its own image from the pulled code (no image transfer needed).
+        // ── 5. Deploy to EC2 (master branch only) ────────────────────────────
+        // SSH into EC2 → git pull latest master → docker compose restart.
+        // EC2 builds its own Docker image from the pulled code.
         stage('Deploy to EC2') {
             when {
                 branch 'master'
@@ -157,16 +158,18 @@ pipeline {
                             git fetch --all
                             git reset --hard origin/master
 
-                            echo "[Deploy] Saving current container for rollback..."
-                            docker inspect nids_app --format "{{.Image}}" 2>/dev/null > /tmp/nids_prev_image.txt || echo none > /tmp/nids_prev_image.txt
+                            echo "[Deploy] Saving current image for rollback..."
+                            docker inspect nids_app --format "{{.Image}}" 2>/dev/null \
+                                > /tmp/nids_prev_image.txt || echo none > /tmp/nids_prev_image.txt
 
                             echo "[Deploy] Restarting containers..."
-                            INGEST_TOKEN="${INGEST_TOKEN}" docker compose -f docker-compose.deploy.yml up -d --build --force-recreate
+                            INGEST_TOKEN="${INGEST_TOKEN}" \
+                                docker compose -f docker-compose.deploy.yml up -d --build --force-recreate
 
                             echo "[Deploy] Pruning old images..."
                             docker image prune -f
 
-                            echo "[Deploy] Container status:"
+                            echo "[Deploy] Status:"
                             docker ps --format "table {{.Names}}\\t{{.Status}}\\t{{.Ports}}"
                         '
                     """
@@ -181,19 +184,19 @@ pipeline {
             }
         }
 
-        // ── Stage 5: Health Check ─────────────────────────────────────────────
+        // ── 6. Health Check ───────────────────────────────────────────────────
         stage('Health Check') {
             when { branch 'master' }
-            options { timeout(time: 3, unit: 'MINUTES') }
+            options { timeout(time: 5, unit: 'MINUTES') }
             steps {
                 sh """
-                    sleep 15
+                    sleep 20
                     for i in 1 2 3 4 5; do
-                        STATUS=\$(curl -s -o /dev/null -w '%{http_code}' \\
+                        STATUS=\$(curl -s -o /dev/null -w '%{http_code}' \
                             http://${EC2_HOST}/api/health --max-time 10 || echo 000)
                         echo "Health check \$i/5: HTTP \$STATUS"
                         if [ "\$STATUS" = "200" ]; then
-                            echo "Health check PASSED — http://${EC2_HOST} is live"
+                            echo "PASSED — http://${EC2_HOST} is live"
                             exit 0
                         fi
                         sleep 10
@@ -208,14 +211,14 @@ pipeline {
             }
         }
 
-        // ── Stage 6: Rollback ─────────────────────────────────────────────────
+        // ── 7. Rollback (only fires if deploy/health-check failed) ────────────
         stage('Rollback') {
             when {
                 branch 'master'
                 expression { currentBuild.result == 'FAILURE' }
             }
             steps {
-                echo 'Deployment failed — rolling back to previous image...'
+                echo 'Deployment failed — rolling back...'
                 sshagent(['ec2-ssh-key']) {
                     sh """
                         ssh -o StrictHostKeyChecking=no ubuntu@${EC2_HOST} '
@@ -225,7 +228,7 @@ pipeline {
                                 docker compose -f ~/nids-app/docker-compose.deploy.yml up -d
                                 echo "Rollback complete"
                             else
-                                echo "No previous image found — manual intervention needed"
+                                echo "No previous image — manual fix needed"
                             fi
                         '
                     """
@@ -236,14 +239,10 @@ pipeline {
 
     post {
         always {
-            echo "Build #${BUILD_NUMBER} finished on branch ${env.BRANCH_NAME ?: 'unknown'}"
+            echo "Build #${BUILD_NUMBER} on ${env.BRANCH_NAME ?: 'unknown'} — DONE"
         }
-        success {
-            echo 'BUILD SUCCEEDED'
-        }
-        failure {
-            echo 'BUILD FAILED — check console output above'
-        }
+        success { echo 'BUILD SUCCEEDED' }
+        failure  { echo 'BUILD FAILED — check console output above' }
         cleanup {
             bat 'docker image prune -f 2>nul || echo done'
             cleanWs()
