@@ -141,8 +141,11 @@ pipeline {
         // No Spark, no Kafka, no ML — that all stays on your local machine.
         stage('Deploy to EC2') {
             when {
-                branch 'master'
-                expression { currentBuild.result == null || currentBuild.result == 'SUCCESS' }
+                expression {
+                    def b = env.GIT_BRANCH ?: env.BRANCH_NAME ?: ''
+                    return (b == 'master' || b == 'origin/master') &&
+                           (currentBuild.result == null || currentBuild.result == 'SUCCESS')
+                }
             }
             options { timeout(time: 10, unit: 'MINUTES') }
             steps {
@@ -181,7 +184,12 @@ pipeline {
 
         // ── 6. Health Check ───────────────────────────────────────────────────
         stage('Health Check') {
-            when { branch 'master' }
+            when {
+                expression {
+                    def b = env.GIT_BRANCH ?: env.BRANCH_NAME ?: ''
+                    return b == 'master' || b == 'origin/master'
+                }
+            }
             options { timeout(time: 5, unit: 'MINUTES') }
             steps {
                 sh """
@@ -209,8 +217,11 @@ pipeline {
         // ── 7. Rollback (only fires if deploy or health check failed) ─────────
         stage('Rollback') {
             when {
-                branch 'master'
-                expression { currentBuild.result == 'FAILURE' }
+                expression {
+                    def b = env.GIT_BRANCH ?: env.BRANCH_NAME ?: ''
+                    return (b == 'master' || b == 'origin/master') &&
+                           currentBuild.result == 'FAILURE'
+                }
             }
             steps {
                 echo 'Deployment failed — rolling back to previous image...'
