@@ -20,6 +20,7 @@ ENV/
 .env
 .env.*
 !.env.example
+!.env.local
 
 # Pytest
 .pytest_cache/
@@ -64,3 +65,20 @@ C:\nids
 data/UNSW-NB15/Training and Testing Sets/
 *.java
 *.jar
+
+# EC2 / AWS -- NEVER commit these
+*.pem
+*.ppk
+*.key
+
+# PID files from local dev
+*.pid
+
+# Local-dev-only files
+LOCAL_DEV.ps1
+requirements.local.txt
+docker-compose.local.yml
+
+# Coverage / test reports
+coverage.xml
+test-results.xml

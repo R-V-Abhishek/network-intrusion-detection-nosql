@@ -120,16 +120,16 @@ def push_to_ec2(alerts: list, sessions: list) -> bool:
             resp = requests.post(url, json=payload, headers=headers, timeout=TIMEOUT)
             if resp.status_code == 200:
                 result = resp.json()
-                print(f"[Sync] ✅ Pushed {len(alerts)} alerts → EC2 | Response: {result}")
+                print(f"[Sync] OK Pushed {len(alerts)} alerts -> EC2 | Response: {result}")
                 return True
             else:
-                print(f"[Sync] ⚠️ EC2 returned HTTP {resp.status_code}: {resp.text[:200]}")
+                print(f"[Sync] WARN EC2 returned HTTP {resp.status_code}: {resp.text[:200]}")
         except requests.RequestException as exc:
             print(f"[Sync] Attempt {attempt+1} failed: {exc}")
             if attempt < 2:
                 time.sleep(5)
 
-    print("[Sync] ❌ All 3 push attempts failed. Will retry next cycle.")
+    print("[Sync] FAIL All 3 push attempts failed. Will retry next cycle.")
     return False
 
 
@@ -152,7 +152,7 @@ def main():
     args = parser.parse_args()
 
     print("=" * 60)
-    print("[Sync] NIDS → EC2 Data Sync")
+    print("[Sync] NIDS -> EC2 Data Sync")
     print(f"  Local Redis:  {LOCAL_REDIS_HOST}:{LOCAL_REDIS_PORT}")
     print(f"  EC2 URL:      {EC2_URL}")
     print(f"  Session ID:   {SESSION_ID}")

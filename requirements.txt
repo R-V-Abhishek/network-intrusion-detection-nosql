@@ -1,15 +1,23 @@
+# requirements.txt — All dependencies for NIDS project
+# Install into venv: python -m venv venv && venv\Scripts\pip install -r requirements.txt
+# Note: PySpark requires Java 17. Use tools\jdk-17.0.12 bundled in this repo.
+
+# ── Dashboard & API ────────────────────────────────────────────────────────────
 flask>=3.0.0
 redis==5.0.8
 cassandra-driver>=3.29.2
+requests>=2.31.0
+
+# ── Data / ML ─────────────────────────────────────────────────────────────────
 pandas
 scikit-learn
 pyarrow
+
+# ── Streaming Pipeline ────────────────────────────────────────────────────────
 kafka-python>=2.0.0
 pyspark==4.1.1
-ipykernel
-jupyterlab
 
-# ── Dev / CI ────────────────────────────────────────────────────────────────
-pytest>=8.0.0          # test runner — used by Jenkins in the Test stage
-pytest-cov>=5.0.0      # coverage plugin for pytest --cov
-flake8>=7.0.0          # linter — used by Jenkins in the Lint stage
+# ── Dev / CI ──────────────────────────────────────────────────────────────────
+pytest>=8.0.0
+pytest-cov>=5.0.0
+flake8>=7.0.0
