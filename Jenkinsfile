@@ -4,21 +4,17 @@
  * Runs ON your local Windows machine (Jenkins installed locally).
  * Deploys TO EC2 via SSH — git pull + docker compose restart.
  *
- * Stages:
- *   1. Checkout          — pull latest code from GitHub
- *   2. Install           — create venv + pip install (cached)
- *   3. Quality (parallel)
- *      a. Lint           — flake8
- *      b. Unit Tests     — pytest (no Docker needed)
- *   4. Integration Tests — Redis CI container + integration suite
- *   5. Deploy to EC2     — SSH → git pull → docker compose up (master only)
- *   6. Health Check      — curl EC2 /api/health (master only)
- *   7. Rollback          — revert container if health check fails
+ * Architecture:
+ *   Local machine  → Kafka + Spark pipeline + Redis + Cassandra
+ *   Local Jenkins  → lint + test → SSH EC2 → git pull → docker compose up
+ *   Local machine  → sync_push.py → POST /api/ingest → EC2 (dashboard + Redis only)
+ *
+ * EC2 runs ONLY: Flask dashboard + Redis. It receives alerts via HTTP POST.
  *
  * Jenkins Credentials required (Manage Jenkins → Credentials → Global):
- *   ec2-host          Secret text                → your EC2 public IP
- *   ec2-ssh-key       SSH Username+Private Key   → username: ubuntu, key: .pem contents
- *   ec2-ingest-token  Secret text                → devops-demo
+ *   ec2-host          Secret text              → your EC2 public IP
+ *   ec2-ssh-key       SSH Username+Private Key → username: ubuntu, key: .pem contents
+ *   ec2-ingest-token  Secret text              → devops-demo
  */
 
 pipeline {
@@ -48,20 +44,20 @@ pipeline {
             steps {
                 deleteDir()
                 checkout scm
-                bat 'git log -1 --oneline'
+                powershell 'git log -1 --oneline'
             }
         }
 
         // ── 2. Install Dependencies ───────────────────────────────────────────
-        // Always create a fresh venv — venv/ is gitignored so never in workspace.
-        // tools/ (JDK) is also gitignored; unit tests don't need PySpark so that's fine.
+        // venv/ is gitignored — always rebuild in fresh Jenkins workspace.
         stage('Install Dependencies') {
             options { timeout(time: 10, unit: 'MINUTES') }
             steps {
-                bat '''
+                powershell '''
                     python -m venv venv
-                    venv\\Scripts\\python.exe -m pip install --upgrade pip --quiet
-                    venv\\Scripts\\python.exe -m pip install -r requirements.txt --quiet
+                    .\\venv\\Scripts\\python.exe -m pip install --upgrade pip --quiet
+                    .\\venv\\Scripts\\python.exe -m pip install -r requirements.txt --quiet
+                    Write-Host "Install complete"
                 '''
             }
         }
@@ -73,10 +69,11 @@ pipeline {
                 stage('Lint') {
                     options { timeout(time: 5, unit: 'MINUTES') }
                     steps {
-                        bat '''
-                            venv\\Scripts\\flake8.exe config/ src/ streaming/ dashboard/ tests/ sync_push.py ^
-                                --max-line-length=110 ^
-                                --exclude=venv ^
+                        powershell '''
+                            .\\venv\\Scripts\\flake8.exe `
+                                config/ src/ streaming/ dashboard/ tests/ sync_push.py `
+                                --max-line-length=110 `
+                                --exclude=venv `
                                 --count
                         '''
                     }
@@ -89,14 +86,14 @@ pipeline {
                 stage('Unit Tests') {
                     options { timeout(time: 10, unit: 'MINUTES') }
                     steps {
-                        bat '''
-                            set NIDS_DISABLE_CASSANDRA=1
-                            set PYTHONPATH=.
-                            venv\\Scripts\\pytest.exe tests/ ^
-                                --ignore=tests\\test_integration_storage_smoke.py ^
-                                --junitxml=test-results.xml ^
-                                --cov=. ^
-                                --cov-report=xml ^
+                        powershell '''
+                            $env:NIDS_DISABLE_CASSANDRA = "1"
+                            $env:PYTHONPATH = "."
+                            .\\venv\\Scripts\\pytest.exe tests/ `
+                                --ignore=tests/test_integration_storage_smoke.py `
+                                --junitxml=test-results.xml `
+                                --cov=. `
+                                --cov-report=xml `
                                 -q
                         '''
                     }
@@ -113,34 +110,35 @@ pipeline {
         }
 
         // ── 4. Integration Tests ──────────────────────────────────────────────
-        // Spins up a Redis container on port 6380 for integration tests.
+        // Spins up a temporary Redis container on :6380 just for this test run.
         stage('Integration Tests') {
             options { timeout(time: 10, unit: 'MINUTES') }
             steps {
-                bat 'docker compose -f docker-compose.ci.yml down --remove-orphans 2>nul || echo nothing to stop'
-                bat 'docker compose -f docker-compose.ci.yml up -d --wait'
-                bat '''
-                    set REDIS_HOST=localhost
-                    set REDIS_PORT=6380
-                    set NIDS_DISABLE_CASSANDRA=1
-                    set NIDS_RUN_INTEGRATION=1
-                    set PYTHONPATH=.
-                    venv\\Scripts\\pytest.exe tests/ -m integration ^
-                        --junitxml=integration-results.xml ^
+                powershell 'docker compose -f docker-compose.ci.yml down --remove-orphans 2>$null; echo "Cleaned up"'
+                powershell 'docker compose -f docker-compose.ci.yml up -d --wait'
+                powershell '''
+                    $env:REDIS_HOST              = "localhost"
+                    $env:REDIS_PORT              = "6380"
+                    $env:NIDS_DISABLE_CASSANDRA  = "1"
+                    $env:NIDS_RUN_INTEGRATION    = "1"
+                    $env:PYTHONPATH              = "."
+                    .\\venv\\Scripts\\pytest.exe tests/ -m integration `
+                        --junitxml=integration-results.xml `
                         -v
                 '''
             }
             post {
                 always {
-                    bat 'docker compose -f docker-compose.ci.yml down --remove-orphans 2>nul || echo done'
+                    powershell 'docker compose -f docker-compose.ci.yml down --remove-orphans 2>$null; echo "CI Redis stopped"'
                     junit allowEmptyResults: true, testResults: 'integration-results.xml'
                 }
             }
         }
 
-        // ── 5. Deploy to EC2 (master branch only) ────────────────────────────
-        // SSH into EC2 → git pull latest master → docker compose restart.
-        // EC2 builds its own Docker image from the pulled code.
+        // ── 5. Deploy to EC2 (master branch only) ─────────────────────────────
+        // SSH into EC2 → git pull → docker compose restart.
+        // EC2 only runs: Flask dashboard + Redis.
+        // No Spark, no Kafka, no ML — that all stays on your local machine.
         stage('Deploy to EC2') {
             when {
                 branch 'master'
@@ -162,14 +160,11 @@ pipeline {
                             docker inspect nids_app --format "{{.Image}}" 2>/dev/null \
                                 > /tmp/nids_prev_image.txt || echo none > /tmp/nids_prev_image.txt
 
-                            echo "[Deploy] Restarting containers..."
+                            echo "[Deploy] Restarting dashboard + Redis..."
                             INGEST_TOKEN="${INGEST_TOKEN}" \
                                 docker compose -f docker-compose.deploy.yml up -d --build --force-recreate
 
-                            echo "[Deploy] Pruning old images..."
                             docker image prune -f
-
-                            echo "[Deploy] Status:"
                             docker ps --format "table {{.Names}}\\t{{.Status}}\\t{{.Ports}}"
                         '
                     """
@@ -201,7 +196,7 @@ pipeline {
                         fi
                         sleep 10
                     done
-                    echo "Health check FAILED after 5 attempts"
+                    echo "Health check FAILED"
                     exit 1
                 """
             }
@@ -211,14 +206,14 @@ pipeline {
             }
         }
 
-        // ── 7. Rollback (only fires if deploy/health-check failed) ────────────
+        // ── 7. Rollback (only fires if deploy or health check failed) ─────────
         stage('Rollback') {
             when {
                 branch 'master'
                 expression { currentBuild.result == 'FAILURE' }
             }
             steps {
-                echo 'Deployment failed — rolling back...'
+                echo 'Deployment failed — rolling back to previous image...'
                 sshagent(['ec2-ssh-key']) {
                     sh """
                         ssh -o StrictHostKeyChecking=no ubuntu@${EC2_HOST} '
@@ -239,12 +234,12 @@ pipeline {
 
     post {
         always {
-            echo "Build #${BUILD_NUMBER} on ${env.BRANCH_NAME ?: 'unknown'} — DONE"
+            echo "Build #${BUILD_NUMBER} on branch ${env.BRANCH_NAME ?: 'unknown'} — done"
         }
         success { echo 'BUILD SUCCEEDED' }
         failure  { echo 'BUILD FAILED — check console output above' }
         cleanup {
-            bat 'docker image prune -f 2>nul || echo done'
+            powershell 'docker image prune -f 2>$null; Write-Host "Cleanup done"'
             cleanWs()
         }
     }
