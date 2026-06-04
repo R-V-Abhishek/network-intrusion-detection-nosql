@@ -149,34 +149,52 @@ pipeline {
             }
             options { timeout(time: 10, unit: 'MINUTES') }
             steps {
-                sshagent(['ec2-ssh-key']) {
-                    sh """
-                        ssh -o StrictHostKeyChecking=no -o ConnectTimeout=15 ubuntu@${EC2_HOST} '
-                            set -e
-                            cd ~/nids-app
+                // withCredentials writes the PEM key to a temp file.
+                // We call ssh.exe directly — avoids sshagent plugin (broken on Windows).
+                withCredentials([
+                    string(credentialsId: 'ec2-host', variable: 'EC2_HOST'),
+                    string(credentialsId: 'ec2-ingest-token', variable: 'INGEST_TOKEN'),
+                    sshUserPrivateKey(credentialsId: 'ec2-ssh-key', keyFileVariable: 'SSH_KEY_FILE', usernameVariable: 'SSH_USER')
+                ]) {
+                    powershell '''
+                        # Fix key file permissions (ssh.exe rejects world-readable keys)
+                        $keyFile = $env:SSH_KEY_FILE
+                        icacls $keyFile /inheritance:r /grant:r "$env:USERNAME:R" | Out-Null
 
-                            echo "[Deploy] Pulling latest code..."
-                            git fetch --all
-                            git reset --hard origin/master
+                        $remote = "$env:SSH_USER@$env:EC2_HOST"
+                        $token  = $env:INGEST_TOKEN
 
-                            echo "[Deploy] Saving current image for rollback..."
-                            docker inspect nids_app --format "{{.Image}}" 2>/dev/null \
-                                > /tmp/nids_prev_image.txt || echo none > /tmp/nids_prev_image.txt
+                        $deployCmd = @"
+set -e
+cd ~/nids-app
+echo "[Deploy] Pulling latest code..."
+git fetch --all
+git reset --hard origin/master
+docker inspect nids_app --format "{{.Image}}" 2>/dev/null > /tmp/nids_prev_image.txt || echo none > /tmp/nids_prev_image.txt
+echo "[Deploy] Restarting dashboard + Redis..."
+INGEST_TOKEN=$token docker compose -f docker-compose.deploy.yml up -d --build --force-recreate
+docker image prune -f
+docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+"@
 
-                            echo "[Deploy] Restarting dashboard + Redis..."
-                            INGEST_TOKEN="${INGEST_TOKEN}" \
-                                docker compose -f docker-compose.deploy.yml up -d --build --force-recreate
-
-                            docker image prune -f
-                            docker ps --format "table {{.Names}}\\t{{.Status}}\\t{{.Ports}}"
-                        '
-                    """
+                        Write-Host "[Deploy] Connecting to $remote ..."
+                        echo $deployCmd | ssh -o StrictHostKeyChecking=no -o ConnectTimeout=20 -i $keyFile $remote bash
+                        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+                    '''
                 }
             }
             post {
                 failure {
-                    sshagent(['ec2-ssh-key']) {
-                        sh "ssh -o StrictHostKeyChecking=no ubuntu@${EC2_HOST} 'docker logs nids_app --tail 50' || true"
+                    withCredentials([
+                        string(credentialsId: 'ec2-host', variable: 'EC2_HOST'),
+                        sshUserPrivateKey(credentialsId: 'ec2-ssh-key', keyFileVariable: 'SSH_KEY_FILE', usernameVariable: 'SSH_USER')
+                    ]) {
+                        powershell '''
+                            $keyFile = $env:SSH_KEY_FILE
+                            icacls $keyFile /inheritance:r /grant:r "$env:USERNAME:R" | Out-Null
+                            ssh -o StrictHostKeyChecking=no -i $keyFile "$env:SSH_USER@$env:EC2_HOST" `
+                                "docker logs nids_app --tail 50" 2>&1 || true
+                        '''
                     }
                 }
             }
@@ -192,24 +210,33 @@ pipeline {
             }
             options { timeout(time: 5, unit: 'MINUTES') }
             steps {
-                sh """
-                    sleep 20
-                    for i in 1 2 3 4 5; do
-                        STATUS=\$(curl -s -o /dev/null -w '%{http_code}' \
-                            http://${EC2_HOST}/api/health --max-time 10 || echo 000)
-                        echo "Health check \$i/5: HTTP \$STATUS"
-                        if [ "\$STATUS" = "200" ]; then
-                            echo "PASSED — http://${EC2_HOST} is live"
-                            exit 0
-                        fi
-                        sleep 10
-                    done
-                    echo "Health check FAILED"
-                    exit 1
-                """
+                withCredentials([string(credentialsId: 'ec2-host', variable: 'EC2_HOST')]) {
+                    powershell '''
+                        Start-Sleep 20
+                        $passed = $false
+                        for ($i = 1; $i -le 5; $i++) {
+                            try {
+                                $resp = Invoke-WebRequest -Uri "http://$env:EC2_HOST/api/health" -TimeoutSec 10 -UseBasicParsing
+                                if ($resp.StatusCode -eq 200) {
+                                    Write-Host "Health check $i/5: HTTP 200 -- PASSED"
+                                    $passed = $true
+                                    break
+                                }
+                                Write-Host "Health check $i/5: HTTP $($resp.StatusCode)"
+                            } catch {
+                                Write-Host "Health check $i/5: failed -- $_"
+                            }
+                            Start-Sleep 10
+                        }
+                        if (-not $passed) {
+                            Write-Host "Health check FAILED after 5 attempts"
+                            exit 1
+                        }
+                    '''
+                }
             }
             post {
-                success { echo "Dashboard live: http://${EC2_HOST}" }
+                success { echo "Dashboard is live" }
                 failure  { echo "Health check failed — rollback will fire" }
             }
         }
@@ -225,19 +252,23 @@ pipeline {
             }
             steps {
                 echo 'Deployment failed — rolling back to previous image...'
-                sshagent(['ec2-ssh-key']) {
-                    sh """
-                        ssh -o StrictHostKeyChecking=no ubuntu@${EC2_HOST} '
-                            PREV=\$(cat /tmp/nids_prev_image.txt 2>/dev/null || echo none)
-                            echo "Rolling back to: \$PREV"
-                            if [ "\$PREV" != "none" ] && [ -n "\$PREV" ]; then
-                                docker compose -f ~/nids-app/docker-compose.deploy.yml up -d
-                                echo "Rollback complete"
-                            else
-                                echo "No previous image — manual fix needed"
-                            fi
-                        '
-                    """
+                withCredentials([
+                    string(credentialsId: 'ec2-host', variable: 'EC2_HOST'),
+                    sshUserPrivateKey(credentialsId: 'ec2-ssh-key', keyFileVariable: 'SSH_KEY_FILE', usernameVariable: 'SSH_USER')
+                ]) {
+                    powershell '''
+                        $keyFile = $env:SSH_KEY_FILE
+                        icacls $keyFile /inheritance:r /grant:r "$env:USERNAME:R" | Out-Null
+                        $rollbackCmd = @"
+PREV=$(cat /tmp/nids_prev_image.txt 2>/dev/null || echo none)
+echo Rolling back to: $PREV
+if [ "$PREV" != "none" ] && [ -n "$PREV" ]; then
+    docker compose -f ~/nids-app/docker-compose.deploy.yml up -d
+    echo Rollback complete
+fi
+"@
+                        echo $rollbackCmd | ssh -o StrictHostKeyChecking=no -i $keyFile "$env:SSH_USER@$env:EC2_HOST" bash
+                    '''
                 }
             }
         }
