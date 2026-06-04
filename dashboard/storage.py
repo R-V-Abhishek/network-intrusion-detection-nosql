@@ -588,9 +588,22 @@ def get_storage() -> AlertStorage:
 
 
 def _parse_iso(value: Optional[str]) -> datetime:
+    """Parse an ISO-8601 timestamp string into a timezone-aware UTC datetime.
+
+    Always returns an aware datetime so it can be safely compared with
+    ``datetime.now(UTC)`` without raising TypeError.
+    """
+    epoch = datetime(1970, 1, 1, tzinfo=UTC)
     if not value:
-        return datetime.utcfromtimestamp(0)
+        return epoch
     try:
-        return datetime.fromisoformat(value.replace("Z", ""))
+        # Replace trailing 'Z' with '+00:00' so fromisoformat understands it
+        # as UTC on all Python versions.
+        normalised = value.replace("Z", "+00:00")
+        dt = datetime.fromisoformat(normalised)
+        # If the parsed result is still naive (no tzinfo), assume UTC.
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=UTC)
+        return dt
     except ValueError:
-        return datetime.utcfromtimestamp(0)
+        return epoch
