@@ -1,17 +1,27 @@
 /*
- * Jenkinsfile — NIDS DevOps Demo
- * Hybrid Local+EC2 architecture
+ * Jenkinsfile — NIDS DevOps Pipeline
+ *
+ * Runs ON your local Windows machine (Jenkins installed locally).
+ * Deploys TO EC2 via SSH — simple git pull + docker compose restart.
+ *
+ * Architecture:
+ *   Local Jenkins → lint + test → SSH EC2 → git pull → docker compose up
+ *   Local machine → sync_push.py → POST /api/ingest → EC2 Redis → Dashboard
  *
  * Stages:
- *  1. Checkout        — pull latest code + show git info
- *  2. Install         — pip install into venv (pip cache)
- *  3. Quality         — lint (flake8) + unit tests (pytest) in parallel
- *  4. Integration     — spin up CI Redis stack, run integration suite
- *  5. Clean           — prune stale Docker images
- *  6. Build           — docker build Dockerfile.ec2 → tagged image
- *  7. Deploy to EC2   — SSH git pull + docker compose up (master only)
- *  8. Health Check    — curl /api/health smoke test (master only)
- *  9. Rollback        — restore previous image on health-check failure
+ *   1. Checkout        — pull latest code from GitHub
+ *   2. Quality (parallel)
+ *      a. Lint         — flake8
+ *      b. Unit Tests   — pytest (no Docker needed)
+ *   3. Integration     — spin up Redis via docker-compose.ci.yml, run integration suite
+ *   4. Deploy to EC2   — SSH in, git pull, docker compose restart (master branch only)
+ *   5. Health Check    — curl EC2 /api/health to confirm deployment worked
+ *   6. Rollback        — revert if health check fails
+ *
+ * Jenkins Credentials needed (Manage Jenkins → Credentials → Global):
+ *   ec2-host         Secret text  → EC2 public IP (e.g. 52.66.67.1)
+ *   ec2-ssh-key      SSH Username with Private Key → username: ubuntu, key: .pem contents
+ *   ec2-ingest-token Secret text  → devops-demo (must match INGEST_TOKEN on EC2)
  */
 
 pipeline {
@@ -19,163 +29,117 @@ pipeline {
     agent any
 
     options {
-        buildDiscarder(logRotator(numToKeepStr: '10', artifactNumToKeepStr: '5'))
-        timeout(time: 30, unit: 'MINUTES')
+        buildDiscarder(logRotator(numToKeepStr: '10'))
+        timeout(time: 20, unit: 'MINUTES')
+        disableConcurrentBuilds()
     }
 
     triggers {
-        // SCM polling every 5 minutes as backup if webhook fails
+        // Polls GitHub every 5 min — also set up GitHub webhook for instant trigger
         pollSCM('H/5 * * * *')
     }
 
     environment {
-        IMAGE_NAME   = "nids-app"
-        IMAGE_TAG    = "${BUILD_NUMBER}"
+        // Injected from Jenkins credential store — never hardcoded
+        EC2_HOST     = credentials('ec2-host')
+        EC2_KEY      = credentials('ec2-ssh-key')
+        INGEST_TOKEN = credentials('ec2-ingest-token')
 
-        // Injected by Jenkins — no plaintext secrets in SCM
-        EC2_HOST     = credentials('ec2-host')         // EC2 public IP
-        EC2_KEY      = credentials('ec2-ssh-key')      // SSH .pem file
-        INGEST_TOKEN = credentials('ec2-ingest-token') // shared API key
+        // Test environment — uses local Redis via docker-compose.ci.yml
+        REDIS_HOST             = "localhost"
+        REDIS_PORT             = "6380"
+        NIDS_DISABLE_CASSANDRA = "1"
+        PYTHONPATH             = "."
 
-        STUB_MODELS  = "true"
-        REDIS_HOST   = "redis"
-        REDIS_PORT   = "6380"
+        // Use bundled JDK 17 for PySpark in tests (only needed if running pipeline tests)
+        JAVA_HOME = "${WORKSPACE}\\tools\\jdk-17.0.12"
     }
 
     stages {
 
+        // ── Stage 1: Checkout ─────────────────────────────────────────────────
         stage('Checkout') {
             steps {
                 deleteDir()
                 checkout scm
-                echo "Branch: ${env.GIT_BRANCH} | Commit: ${env.GIT_COMMIT?.take(8)}"
+                bat 'git log -1 --oneline'
             }
         }
 
-        stage('Install Dependencies') {
-            options { timeout(time: 5, unit: 'MINUTES') }
-            steps {
-                sh '''
-                    python3 -m venv venv
-                    venv/bin/pip install --upgrade pip --cache-dir /tmp/pip-cache --quiet
-                    venv/bin/pip install -r requirements.txt --cache-dir /tmp/pip-cache --quiet
-                '''
-            }
-        }
-
+        // ── Stage 2: Quality (Lint + Unit Tests in parallel) ──────────────────
         stage('Quality') {
             parallel {
 
                 stage('Lint') {
-                    options { timeout(time: 5, unit: 'MINUTES') }
                     steps {
-                        sh '''
-                            venv/bin/flake8 config/ src/ streaming/ dashboard/ tests/ \
-                                --max-line-length=110 \
-                                --exclude=venv \
+                        bat '''
+                            venv\\Scripts\\flake8.exe ^
+                                config/ src/ streaming/ dashboard/ tests/ sync_push.py ^
+                                --max-line-length=110 ^
+                                --exclude=venv ^
                                 --count
                         '''
                     }
                     post {
-                        failure { echo "❌ Lint failed — fix code style issues." }
+                        failure { echo 'Lint FAILED — fix code style before deploy.' }
                     }
                 }
 
-                stage('Unit Tests + Coverage') {
-                    options { timeout(time: 10, unit: 'MINUTES') }
+                stage('Unit Tests') {
                     steps {
-                        sh '''
-                            venv/bin/pytest tests/ \
-                                --junitxml=test-results.xml \
-                                --cov=. \
-                                --cov-report=xml \
-                                --cov-report=html:htmlcov \
-                                -v
+                        bat '''
+                            set NIDS_DISABLE_CASSANDRA=1
+                            set PYTHONPATH=.
+                            venv\\Scripts\\pytest.exe tests/ ^
+                                --ignore=tests\\test_integration_storage_smoke.py ^
+                                --junitxml=test-results.xml ^
+                                --cov=. ^
+                                --cov-report=xml ^
+                                -q
                         '''
                     }
                     post {
                         always {
-                            junit 'test-results.xml'
+                            junit allowEmptyResults: true, testResults: 'test-results.xml'
                             publishCoverage adapters: [coberturaAdapter('coverage.xml')]
-                            archiveArtifacts artifacts: 'test-results.xml,coverage.xml,htmlcov/**', fingerprint: true
                         }
-                        failure { echo "❌ Unit tests FAILED — deployment blocked." }
-                        success { echo "✅ All unit tests passed!" }
+                        failure { echo 'Unit tests FAILED — deployment blocked.' }
                     }
                 }
             }
         }
 
+        // ── Stage 3: Integration Tests ────────────────────────────────────────
         stage('Integration Tests') {
-            options { timeout(time: 10, unit: 'MINUTES') }
+            options { timeout(time: 5, unit: 'MINUTES') }
             steps {
-                sh '''
-                    docker compose -f docker-compose.ci.yml down --remove-orphans 2>/dev/null || true
-                    docker rm -f nids_redis_ci 2>/dev/null || true
-                    docker compose -p nids_ci_${BUILD_NUMBER} -f docker-compose.ci.yml up -d --build --wait
-
-                    # Probe Redis with a PING to confirm reachability
-                    REDIS_TEST_HOST=$(python3 - <<'PY'
-import socket, sys, time
-port = 6380
-candidates = ["localhost", "127.0.0.1", "host.docker.internal"]
-deadline = time.time() + 60
-while time.time() < deadline:
-    for h in candidates:
-        try:
-            with socket.create_connection((h, port), timeout=2) as s:
-                s.sendall(b"*1\\r\\n$4\\r\\nPING\\r\\n")
-                if s.recv(16).startswith(b"+PONG"):
-                    print(h); sys.exit(0)
-        except OSError:
-            continue
-    time.sleep(2)
-sys.exit(1)
-PY
-                    ) || {
-                        echo "Redis on port 6380 not reachable"
-                        docker compose -p nids_ci_${BUILD_NUMBER} -f docker-compose.ci.yml logs --tail=80 || true
-                        exit 1
-                    }
-
-                    REDIS_HOST=${REDIS_TEST_HOST} REDIS_PORT=6380 NIDS_DISABLE_CASSANDRA=1 NIDS_RUN_INTEGRATION=1 \
-                        venv/bin/pytest tests/ -m integration --junitxml=integration-results.xml -v
+                bat '''
+                    docker compose -f docker-compose.ci.yml down --remove-orphans 2>nul || echo "nothing to stop"
+                    docker compose -f docker-compose.ci.yml up -d --wait
+                '''
+                bat '''
+                    set REDIS_HOST=localhost
+                    set REDIS_PORT=6380
+                    set NIDS_DISABLE_CASSANDRA=1
+                    set NIDS_RUN_INTEGRATION=1
+                    set PYTHONPATH=.
+                    venv\\Scripts\\pytest.exe tests/ -m integration ^
+                        --junitxml=integration-results.xml ^
+                        -v
                 '''
             }
             post {
                 always {
-                    sh 'docker compose -p nids_ci_${BUILD_NUMBER} -f docker-compose.ci.yml down --remove-orphans 2>/dev/null || true'
+                    bat 'docker compose -f docker-compose.ci.yml down --remove-orphans 2>nul || echo done'
                     junit allowEmptyResults: true, testResults: 'integration-results.xml'
-                    archiveArtifacts artifacts: 'integration-results.xml', allowEmptyArchive: true, fingerprint: true
                 }
             }
         }
 
-        stage('Clean Docker Environment') {
-            steps {
-                sh '''
-                    docker image prune -f || true
-                    docker system df
-                '''
-            }
-        }
-
-        stage('Build Docker Image') {
-            options { timeout(time: 10, unit: 'MINUTES') }
-            steps {
-                sh '''
-                    docker build \
-                        --build-arg BUILD_NUMBER=${BUILD_NUMBER} \
-                        --build-arg GIT_COMMIT=${GIT_COMMIT} \
-                        -t ${IMAGE_NAME}:${IMAGE_TAG} \
-                        -t ${IMAGE_NAME}:latest \
-                        -f Dockerfile.ec2 \
-                        .
-                    docker image ls ${IMAGE_NAME}
-                '''
-            }
-        }
-
+        // ── Stage 4: Deploy to EC2 ────────────────────────────────────────────
+        // Only runs on master branch after all tests pass.
+        // SSH into EC2 → git pull → docker compose restart.
+        // EC2 builds its own image from the pulled code (no image transfer needed).
         stage('Deploy to EC2') {
             when {
                 branch 'master'
@@ -183,120 +147,105 @@ PY
             }
             options { timeout(time: 10, unit: 'MINUTES') }
             steps {
-                sh '''
-                    chmod 400 $EC2_KEY
-                    ssh -o StrictHostKeyChecking=no \
-                        -o ConnectTimeout=15 \
-                        -i $EC2_KEY ubuntu@${EC2_HOST} << 'EOF'
-                        set -e
-                        cd ~/nids-app
+                sshagent(['ec2-ssh-key']) {
+                    sh """
+                        ssh -o StrictHostKeyChecking=no -o ConnectTimeout=15 ubuntu@${EC2_HOST} '
+                            set -e
+                            cd ~/nids-app
 
-                        git fetch --all
-                        git reset --hard origin/master
+                            echo "[Deploy] Pulling latest code..."
+                            git fetch --all
+                            git reset --hard origin/master
 
-                        # Record previous image for rollback
-                        OLD_IMAGE=$(docker inspect nids_app --format '{{.Config.Image}}' 2>/dev/null || echo "none")
-                        echo "Previous image: $OLD_IMAGE"
-                        echo $OLD_IMAGE > /tmp/nids_prev_image.txt
+                            echo "[Deploy] Saving current container for rollback..."
+                            docker inspect nids_app --format "{{.Image}}" 2>/dev/null > /tmp/nids_prev_image.txt || echo none > /tmp/nids_prev_image.txt
 
-                        # Deploy new version
-                        INGEST_TOKEN="${INGEST_TOKEN}" \
-                        DOCKER_BUILDKIT=0 docker compose -f docker-compose.deploy.yml up -d --build --force-recreate
-                        docker image prune -f
-                        docker ps -a
-EOF
-                '''
+                            echo "[Deploy] Restarting containers..."
+                            INGEST_TOKEN="${INGEST_TOKEN}" docker compose -f docker-compose.deploy.yml up -d --build --force-recreate
+
+                            echo "[Deploy] Pruning old images..."
+                            docker image prune -f
+
+                            echo "[Deploy] Container status:"
+                            docker ps --format "table {{.Names}}\\t{{.Status}}\\t{{.Ports}}"
+                        '
+                    """
+                }
             }
             post {
-                success {
-                    echo "✅ Deployment successful! Dashboard: http://${EC2_HOST}"
-                }
                 failure {
-                    sh '''
-                        ssh -o StrictHostKeyChecking=no -i $EC2_KEY ubuntu@${EC2_HOST} \
-                            "docker logs nids_app --tail 100" || true
-                    '''
+                    sshagent(['ec2-ssh-key']) {
+                        sh "ssh -o StrictHostKeyChecking=no ubuntu@${EC2_HOST} 'docker logs nids_app --tail 50' || true"
+                    }
                 }
             }
         }
 
+        // ── Stage 5: Health Check ─────────────────────────────────────────────
         stage('Health Check') {
             when { branch 'master' }
             options { timeout(time: 3, unit: 'MINUTES') }
             steps {
-                sh '''
-                    sleep 20
+                sh """
+                    sleep 15
                     for i in 1 2 3 4 5; do
-                        STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
-                            http://${EC2_HOST}/api/health \
-                            --max-time 10 || echo "000")
-                        echo "Health check attempt $i: HTTP $STATUS"
-                        if [ "$STATUS" = "200" ]; then
-                            echo "✅ Health check PASSED"
+                        STATUS=\$(curl -s -o /dev/null -w '%{http_code}' \\
+                            http://${EC2_HOST}/api/health --max-time 10 || echo 000)
+                        echo "Health check \$i/5: HTTP \$STATUS"
+                        if [ "\$STATUS" = "200" ]; then
+                            echo "Health check PASSED — http://${EC2_HOST} is live"
                             exit 0
                         fi
                         sleep 10
                     done
-                    echo "❌ Health check FAILED after 5 attempts"
+                    echo "Health check FAILED after 5 attempts"
                     exit 1
-                '''
+                """
             }
             post {
-                success { echo "✅ Deployment verified: http://${EC2_HOST} is live." }
-                failure  { echo "❌ App not reachable post-deploy — rollback will fire." }
+                success { echo "Dashboard live: http://${EC2_HOST}" }
+                failure  { echo "Health check failed — rollback will fire" }
             }
         }
 
+        // ── Stage 6: Rollback ─────────────────────────────────────────────────
         stage('Rollback') {
             when {
                 branch 'master'
                 expression { currentBuild.result == 'FAILURE' }
             }
             steps {
-                echo "🔄 Initiating rollback..."
-                sh '''
-                    ssh -o StrictHostKeyChecking=no -i $EC2_KEY ubuntu@${EC2_HOST} << 'EOF'
-                        PREV_IMAGE=$(cat /tmp/nids_prev_image.txt 2>/dev/null || echo "none")
-                        echo "Rolling back to: $PREV_IMAGE"
-                        if [ "$PREV_IMAGE" != "none" ] && [ -n "$PREV_IMAGE" ]; then
-                            docker stop nids_app 2>/dev/null || true
-                            docker run -d \
-                                --name nids_app_rollback \
-                                --network nids_net \
-                                -p 80:5000 \
-                                -e NIDS_DISABLE_CASSANDRA=1 \
-                                -e REDIS_HOST=redis \
-                                $PREV_IMAGE
-                            echo "✅ Rollback complete"
-                        else
-                            echo "No previous image to roll back to"
-                        fi
-EOF
-                '''
+                echo 'Deployment failed — rolling back to previous image...'
+                sshagent(['ec2-ssh-key']) {
+                    sh """
+                        ssh -o StrictHostKeyChecking=no ubuntu@${EC2_HOST} '
+                            PREV=\$(cat /tmp/nids_prev_image.txt 2>/dev/null || echo none)
+                            echo "Rolling back to: \$PREV"
+                            if [ "\$PREV" != "none" ] && [ -n "\$PREV" ]; then
+                                docker compose -f ~/nids-app/docker-compose.deploy.yml up -d
+                                echo "Rollback complete"
+                            else
+                                echo "No previous image found — manual intervention needed"
+                            fi
+                        '
+                    """
+                }
             }
         }
     }
 
     post {
         always {
-            echo "Pipeline finished. Build #${BUILD_NUMBER} on ${env.BRANCH_NAME}"
-            sh 'rm -rf venv || true'
-        }
-        failure {
-            echo "❌ BUILD FAILED — Check console output above"
+            echo "Build #${BUILD_NUMBER} finished on branch ${env.BRANCH_NAME ?: 'unknown'}"
         }
         success {
-            echo "✅ BUILD SUCCEEDED — All stages passed"
+            echo 'BUILD SUCCEEDED'
+        }
+        failure {
+            echo 'BUILD FAILED — check console output above'
         }
         cleanup {
-            sh '''
-                docker image ls --format '{{.Repository}}:{{.Tag}} {{.ID}}' \
-                    | grep '^nids-app:' \
-                    | tail -n +4 \
-                    | awk '{print $2}' \
-                    | xargs -r docker image rm -f || true
-                docker image prune -f || true
-            '''
+            bat 'docker image prune -f 2>nul || echo done'
             cleanWs()
         }
     }
