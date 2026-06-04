@@ -40,24 +40,31 @@ pipeline {
     stages {
 
         // ── 1. Checkout ───────────────────────────────────────────────────────
+        // No deleteDir() — workspace persists between builds so venv is reused.
         stage('Checkout') {
             steps {
-                deleteDir()
                 checkout scm
                 powershell 'git log -1 --oneline'
             }
         }
 
         // ── 2. Install Dependencies ───────────────────────────────────────────
-        // venv/ is gitignored — always rebuild in fresh Jenkins workspace.
+        // Only creates venv and installs if venv doesn't already exist.
+        // Workspace is NOT wiped between builds so this runs once then is cached.
         stage('Install Dependencies') {
             options { timeout(time: 10, unit: 'MINUTES') }
             steps {
                 powershell '''
-                    python -m venv venv
-                    .\\venv\\Scripts\\python.exe -m pip install --upgrade pip --quiet
-                    .\\venv\\Scripts\\python.exe -m pip install -r requirements.txt --quiet
-                    Write-Host "Install complete"
+                    if (-not (Test-Path ".\\venv\\Scripts\\python.exe")) {
+                        Write-Host "[Install] Creating new venv..."
+                        python -m venv venv
+                        .\\venv\\Scripts\\python.exe -m pip install --upgrade pip --quiet
+                        .\\venv\\Scripts\\python.exe -m pip install -r requirements.txt --quiet
+                        Write-Host "[Install] Done."
+                    } else {
+                        Write-Host "[Install] venv already exists — skipping (cached)."
+                        .\\venv\\Scripts\\python.exe -m pip install -r requirements.txt --quiet
+                    }
                 '''
             }
         }
@@ -157,9 +164,15 @@ pipeline {
                     sshUserPrivateKey(credentialsId: 'ec2-ssh-key', keyFileVariable: 'SSH_KEY_FILE', usernameVariable: 'SSH_USER')
                 ]) {
                     powershell '''
-                        # Fix key file permissions (ssh.exe rejects world-readable keys)
+                        # Fix key file permissions using ACL (icacls syntax varies by locale)
                         $keyFile = $env:SSH_KEY_FILE
-                        icacls $keyFile /inheritance:r /grant:r "$env:USERNAME:R" | Out-Null
+                        $acl = Get-Acl $keyFile
+                        $acl.SetAccessRuleProtection($true, $false)
+                        $acl.Access | ForEach-Object { $acl.RemoveAccessRule($_) | Out-Null }
+                        $identity = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
+                        $rule = New-Object System.Security.AccessControl.FileSystemAccessRule($identity, "Read", "Allow")
+                        $acl.AddAccessRule($rule)
+                        Set-Acl -Path $keyFile -AclObject $acl
 
                         $remote = "$env:SSH_USER@$env:EC2_HOST"
                         $token  = $env:INGEST_TOKEN
@@ -192,7 +205,13 @@ docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
                         powershell '''
                             try {
                                 $keyFile = $env:SSH_KEY_FILE
-                                icacls $keyFile /inheritance:r /grant:r "$env:USERNAME:R" | Out-Null
+                                $acl = Get-Acl $keyFile
+                                $acl.SetAccessRuleProtection($true, $false)
+                                $acl.Access | ForEach-Object { $acl.RemoveAccessRule($_) | Out-Null }
+                                $identity = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
+                                $rule = New-Object System.Security.AccessControl.FileSystemAccessRule($identity, "Read", "Allow")
+                                $acl.AddAccessRule($rule)
+                                Set-Acl -Path $keyFile -AclObject $acl
                                 ssh -o StrictHostKeyChecking=no -i $keyFile "$env:SSH_USER@$env:EC2_HOST" "docker logs nids_app --tail 50"
                             } catch {
                                 Write-Host "Could not fetch EC2 logs: $_"
@@ -261,7 +280,13 @@ docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
                 ]) {
                     powershell '''
                         $keyFile = $env:SSH_KEY_FILE
-                        icacls $keyFile /inheritance:r /grant:r "$env:USERNAME:R" | Out-Null
+                        $acl = Get-Acl $keyFile
+                        $acl.SetAccessRuleProtection($true, $false)
+                        $acl.Access | ForEach-Object { $acl.RemoveAccessRule($_) | Out-Null }
+                        $identity = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
+                        $rule = New-Object System.Security.AccessControl.FileSystemAccessRule($identity, "Read", "Allow")
+                        $acl.AddAccessRule($rule)
+                        Set-Acl -Path $keyFile -AclObject $acl
                         $rollbackCmd = @"
 PREV=$(cat /tmp/nids_prev_image.txt 2>/dev/null || echo none)
 echo Rolling back to: $PREV
@@ -284,8 +309,8 @@ fi
         success { echo 'BUILD SUCCEEDED' }
         failure  { echo 'BUILD FAILED — check console output above' }
         cleanup {
+            // Do NOT cleanWs() — preserves venv between builds (no 2-min pip install every run)
             powershell 'docker image prune -f 2>$null; Write-Host "Cleanup done"'
-            cleanWs()
         }
     }
 }
