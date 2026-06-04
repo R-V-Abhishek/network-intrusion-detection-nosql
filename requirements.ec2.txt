@@ -1,0 +1,7 @@
+# EC2-only requirements — no PySpark, no Kafka, no Jupyter
+# Used by Dockerfile.ec2 multi-stage build
+flask>=3.0.0
+redis==5.0.8
+cassandra-driver>=3.29.2
+requests>=2.31.0
+gunicorn>=22.0.0

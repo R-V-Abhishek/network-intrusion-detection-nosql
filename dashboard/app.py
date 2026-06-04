@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hmac
 import os
 import subprocess
 
@@ -16,6 +17,9 @@ from dashboard.storage import (
     set_current_session_id,
     start_new_session,
 )
+
+# Shared API key for /api/ingest — must match INGEST_TOKEN env var on local machine
+INGEST_TOKEN = os.getenv("INGEST_TOKEN", "devops-demo")
 
 
 def create_app() -> Flask:
@@ -93,6 +97,41 @@ def create_app() -> Flask:
         clear_session()
         result = storage.delete_all_sessions()
         return jsonify(result)
+
+    @app.post("/api/ingest")
+    def api_ingest():
+        """Receive pre-computed alerts from local machine sync_push.py.
+
+        Authenticated via X-Ingest-Token header using constant-time comparison
+        to prevent timing attacks. Writes alerts directly into EC2 Redis so the
+        dashboard can display live data without running Spark/Kafka on EC2.
+        """
+        token = request.headers.get("X-Ingest-Token", "")
+        if not hmac.compare_digest(token, INGEST_TOKEN):
+            return jsonify({"error": "unauthorized"}), 401
+
+        payload = request.get_json(silent=True)
+        if not payload:
+            return jsonify({"error": "empty payload"}), 400
+
+        session_id = payload.get("session_id", "local-session")
+        alerts = payload.get("alerts", [])
+        sessions = payload.get("sessions", [])
+
+        # Register any sessions included in the payload
+        for sess in sessions:
+            if sess.get("session_id"):
+                storage.register_session(sess["session_id"], sess.get("dataset", "unsw"))
+
+        # Store alerts into EC2 Redis
+        if alerts:
+            storage.store_alerts(alerts, session_id)
+
+        return jsonify({
+            "status": "ok",
+            "alerts_stored": len(alerts),
+            "sessions_registered": len(sessions),
+        })
 
     return app
 
