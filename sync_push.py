@@ -34,11 +34,11 @@ import requests
 
 LOCAL_REDIS_HOST = os.getenv("LOCAL_REDIS_HOST", "localhost")
 LOCAL_REDIS_PORT = int(os.getenv("LOCAL_REDIS_PORT", "6379"))
-EC2_URL          = os.getenv("EC2_URL", "http://localhost:5000").rstrip("/")
-INGEST_TOKEN     = os.getenv("INGEST_TOKEN", "devops-demo")
-SESSION_ID       = os.getenv("SYNC_SESSION_ID", "local-session")
-SYNC_LIMIT       = int(os.getenv("SYNC_LIMIT", "500"))
-TIMEOUT          = 15  # HTTP request timeout seconds
+EC2_URL = os.getenv("EC2_URL", "http://localhost:5000").rstrip("/")
+INGEST_TOKEN = os.getenv("INGEST_TOKEN", "devops-demo")
+SESSION_ID = os.getenv("SYNC_SESSION_ID", "local-session")
+SYNC_LIMIT = int(os.getenv("SYNC_LIMIT", "500"))
+TIMEOUT = 15  # HTTP request timeout seconds
 
 
 def connect_local_redis() -> redis.Redis:
