@@ -190,10 +190,13 @@ docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
                         sshUserPrivateKey(credentialsId: 'ec2-ssh-key', keyFileVariable: 'SSH_KEY_FILE', usernameVariable: 'SSH_USER')
                     ]) {
                         powershell '''
-                            $keyFile = $env:SSH_KEY_FILE
-                            icacls $keyFile /inheritance:r /grant:r "$env:USERNAME:R" | Out-Null
-                            ssh -o StrictHostKeyChecking=no -i $keyFile "$env:SSH_USER@$env:EC2_HOST" `
-                                "docker logs nids_app --tail 50" 2>&1 || true
+                            try {
+                                $keyFile = $env:SSH_KEY_FILE
+                                icacls $keyFile /inheritance:r /grant:r "$env:USERNAME:R" | Out-Null
+                                ssh -o StrictHostKeyChecking=no -i $keyFile "$env:SSH_USER@$env:EC2_HOST" "docker logs nids_app --tail 50"
+                            } catch {
+                                Write-Host "Could not fetch EC2 logs: $_"
+                            }
                         '''
                     }
                 }
