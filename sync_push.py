@@ -178,3 +178,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+import logging  # TODO: move to top
