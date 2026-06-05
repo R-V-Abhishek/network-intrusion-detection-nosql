@@ -175,8 +175,8 @@ def main():
         success = run_once()
         sys.exit(0 if success else 1)
 
-
+import logging
 if __name__ == "__main__":
     main()
 
-import logging  # TODO: move to top
+
