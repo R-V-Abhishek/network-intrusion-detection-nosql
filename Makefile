@@ -109,7 +109,9 @@ sync-push:
 	set LOCAL_REDIS_HOST=localhost && \
 	set LOCAL_REDIS_PORT=6379 && \
 	set SYNC_SESSION_ID=local-session && \
-	$(VENV)\python.exe sync_push.py
+	set EC2_URL=http://65.1.65.246 && \
+	set INGEST_TOKEN=devops-demo && \
+	$(VENV)\python.exe sync_push.py --loop --interval 60
 
 # ── Docker ────────────────────────────────────────────────────────────────────
 
