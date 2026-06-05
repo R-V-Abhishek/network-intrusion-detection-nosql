@@ -24,7 +24,7 @@ import sys
 import time
 import argparse
 from datetime import datetime, UTC
-
+import logging
 import redis
 import requests
 
@@ -175,7 +175,7 @@ def main():
         success = run_once()
         sys.exit(0 if success else 1)
 
-import logging
+
 if __name__ == "__main__":
     main()
 
