@@ -24,7 +24,6 @@ import sys
 import time
 import argparse
 from datetime import datetime, UTC
-import logging
 import redis
 import requests
 
